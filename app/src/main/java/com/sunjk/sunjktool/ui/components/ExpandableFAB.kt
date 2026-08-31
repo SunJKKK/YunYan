@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -41,6 +40,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ExpandableFAB(
     onAddLog: () -> Unit,
+    onEditHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -77,11 +77,20 @@ fun ExpandableFAB(
             ) {
                 Column(horizontalAlignment = Alignment.End) {
                     FABMenuItem(
-                        label = "添加学习日志",
+                        label = "添加学习记录",
                         icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
                         onClick = {
                             expanded = false
                             onAddLog()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FABMenuItem(
+                        label = "编辑首页",
+                        icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = {
+                            expanded = false
+                            onEditHome()
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -116,12 +125,11 @@ private fun FABMenuItem(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 4.dp,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
     ) {
         androidx.compose.foundation.layout.Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

@@ -1,6 +1,5 @@
 package com.sunjk.sunjktool.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -41,10 +39,9 @@ fun LogEntryCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
@@ -58,7 +55,7 @@ fun LogEntryCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(MaterialTheme.shapes.extraSmall)
                         .then(
                             Modifier.fillMaxWidth() // to maintain column width
                         )
@@ -66,9 +63,10 @@ fun LogEntryCard(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Image thumbnail
-            val imageFile = remember(entry.imagePath) {
-                entry.imagePath?.let { File(it) }?.takeIf { it.exists() }
+            // Image thumbnail (first image only)
+            val firstPath = entry.imagePaths.firstOrNull()
+            val imageFile = remember(firstPath) {
+                firstPath?.let { File(it) }?.takeIf { it.exists() }
             }
             if (imageFile != null) {
                 AsyncImage(
@@ -77,7 +75,7 @@ fun LogEntryCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(MaterialTheme.shapes.small),
                     contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -146,7 +144,7 @@ private fun LogEntryCardPreview() {
             subject = "Kotlin",
             title = "协程与 Flow 学习笔记",
             timeSpent = 90,
-            imagePath = null,
+            imagePaths = emptyList(),
             createdDate = LocalDateTime.now(),
             updatedDate = LocalDateTime.now()
         )

@@ -70,7 +70,7 @@ private fun LoadingIndicatorPreview() {
 private fun EmptyStatePreview() {
     com.sunjk.sunjktool.ui.theme.SunJKToolTheme {
         EmptyState(
-            title = "还没有学习日志",
+            title = "还没有学习记录",
             subtitle = "点击右下角 + 按钮，开始记录你的学习吧"
         )
     }
@@ -82,7 +82,7 @@ private fun ConfirmDialogPreview() {
     com.sunjk.sunjktool.ui.theme.SunJKToolTheme {
         ConfirmDialog(
             title = "确认删除",
-            message = "删除后无法恢复，确定要删除这条学习日志吗？",
+            message = "删除后无法恢复，确定要删除这条学习记录吗？",
             onConfirm = {},
             onDismiss = {}
         )

@@ -12,7 +12,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,20 +27,14 @@ fun MineScreen() {
         }
     ) { innerPadding ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = Alignment.Center
         ) {
-            // TODO: 添加"我的"页面内容
+            Text(
+                text = "我的页面（待开发）",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun MineScreenPreview() {
-    com.sunjk.sunjktool.ui.theme.SunJKToolTheme {
-        MineScreen()
     }
 }

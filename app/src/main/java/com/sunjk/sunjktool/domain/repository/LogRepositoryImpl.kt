@@ -31,6 +31,26 @@ class LogRepositoryImpl(
         }
     }
 
+    override suspend fun updateSummary(id: Long, summary: String, now: Long) {
+        dao.updateSummary(id, summary, now)
+    }
+
+    override suspend fun updateSelfCheckContent(id: Long, content: String, now: Long) {
+        dao.updateSelfCheckContent(id, content, now)
+    }
+
+
+    override fun getEntriesByNotebookId(notebookId: Long): Flow<List<LogEntry>> =
+        dao.getEntriesByNotebookId(notebookId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override suspend fun clearNotebookId(notebookId: Long) {
+        dao.clearNotebookId(notebookId)
+    }
+
+    override fun countUnfiled(): Flow<Int> = dao.countUnfiled()
+
     override suspend fun deleteEntry(id: Long) {
         dao.delete(
             LogEntryEntity(
@@ -45,7 +65,14 @@ class LogRepositoryImpl(
         subject = subject,
         title = title,
         timeSpent = timeSpent,
-        imagePath = imagePath,
+        imagePaths = LogEntry.decodePaths(imagePath),
+        description = description,
+        aiSummary = aiSummary,
+        selfCheckContent = selfCheckContent,
+        mindMapJson = mindMapJson,
+        attachmentPaths = LogEntry.decodePaths(attachmentPaths),
+        attachmentText = attachmentText,
+        notebookId = notebookId,
         createdDate = LocalDateTime.ofInstant(
             Instant.ofEpochMilli(createdDate), ZoneId.systemDefault()
         ),
@@ -59,7 +86,14 @@ class LogRepositoryImpl(
         subject = subject,
         title = title,
         timeSpent = timeSpent,
-        imagePath = imagePath,
+        imagePath = LogEntry.encodePaths(imagePaths),
+        description = description,
+        aiSummary = aiSummary,
+        selfCheckContent = selfCheckContent,
+        mindMapJson = mindMapJson,
+        attachmentPaths = LogEntry.encodePaths(attachmentPaths),
+        attachmentText = attachmentText,
+        notebookId = notebookId,
         createdDate = createdDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
         updatedDate = updatedDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     )

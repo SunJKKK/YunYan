@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">SunJK\'s ToolBox</string>
+    <string name="app_name">云砚</string>
+    <string name="shortcut_add_log">添加学习记录</string>
+    <string name="shortcut_add_log_long">添加学习记录</string>
 </resources>

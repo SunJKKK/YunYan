@@ -1,13 +1,6 @@
 package com.sunjk.sunjktool.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -25,16 +18,48 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sunjk.sunjktool.domain.repository.CountdownRepository
+import com.sunjk.sunjktool.domain.repository.FlashcardRepository
+import com.sunjk.sunjktool.domain.repository.HabitRepository
+import com.sunjk.sunjktool.domain.repository.HomeModuleRepository
 import com.sunjk.sunjktool.domain.repository.LogRepository
+import com.sunjk.sunjktool.domain.repository.DeepSeekRepository
+import com.sunjk.sunjktool.domain.repository.WeatherRepository
+import com.sunjk.sunjktool.domain.repository.NotebookRepository
+import com.sunjk.sunjktool.domain.repository.QuestionBankRepository
+import com.sunjk.sunjktool.data.local.dao.LogEntryDao
+import com.sunjk.sunjktool.data.local.dao.PomodoroRecordDao
+import com.sunjk.sunjktool.data.local.dao.ReviewStatusDao
+import com.sunjk.sunjktool.data.remote.DeepSeekApi
+import com.sunjk.sunjktool.data.sync.SyncEngine
+import com.sunjk.sunjktool.util.PomodoroManager
+import com.sunjk.sunjktool.util.ReviewHelper
 import com.sunjk.sunjktool.navigation.Screen
 import com.sunjk.sunjktool.navigation.SunJKToolNavHost
 import com.sunjk.sunjktool.navigation.TopLevelDestination
-import com.sunjk.sunjktool.navigation.TRANSITION_DURATION
 
 @Composable
 fun SunJKToolScaffold(
     logRepository: LogRepository,
     countdownRepository: CountdownRepository,
+    homeModuleRepository: HomeModuleRepository,
+    weatherRepository: WeatherRepository,
+    pomodoroManager: PomodoroManager,
+    deepSeekRepository: DeepSeekRepository,
+    reviewHelper: ReviewHelper,
+    reviewDao: ReviewStatusDao,
+    logDao: LogEntryDao,
+    deepSeekApi: DeepSeekApi,
+    syncEngine: SyncEngine,
+    flashcardRepository: FlashcardRepository,
+    habitRepository: HabitRepository,
+    reviewNoteRepository: com.sunjk.sunjktool.domain.repository.ReviewNoteRepository,
+    notebookRepository: NotebookRepository,
+    questionBankRepository: QuestionBankRepository,
+    tickTickRepository: com.sunjk.sunjktool.domain.repository.TickTickRepository,
+    lifeLogRepository: com.sunjk.sunjktool.domain.repository.LifeLogRepository,
+    pomodoroRecordDao: com.sunjk.sunjktool.data.local.dao.PomodoroRecordDao,
+    knowledgePointStatsRepository: com.sunjk.sunjktool.domain.repository.KnowledgePointStatsRepository,
+    apiPreferences: com.sunjk.sunjktool.data.local.ApiPreferences,
     modifier: Modifier = Modifier
 ) {
     val navController: NavHostController = rememberNavController()
@@ -47,18 +72,8 @@ fun SunJKToolScaffold(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
-            AnimatedVisibility(
-                visible = showBottomBar,
-                enter = slideInVertically(
-                    animationSpec = tween(TRANSITION_DURATION, easing = FastOutSlowInEasing)
-                ) { it } + fadeIn(tween(TRANSITION_DURATION, easing = FastOutSlowInEasing)),
-                exit = slideOutVertically(
-                    animationSpec = tween(TRANSITION_DURATION, easing = FastOutLinearInEasing)
-                ) { it } + fadeOut(tween(TRANSITION_DURATION, easing = FastOutLinearInEasing))
-            ) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) {
+            if (showBottomBar) {
+                NavigationBar {
                     TopLevelDestination.entries.forEach { dest ->
                         val selected = currentDestination?.hierarchy?.any {
                             it.route == dest.screen.route
@@ -94,11 +109,33 @@ fun SunJKToolScaffold(
             }
         }
     ) { innerPadding ->
+        SharedTransitionLayout {
         SunJKToolNavHost(
             navController = navController,
             logRepository = logRepository,
             countdownRepository = countdownRepository,
+            homeModuleRepository = homeModuleRepository,
+            weatherRepository = weatherRepository,
+            pomodoroManager = pomodoroManager,
+            deepSeekRepository = deepSeekRepository,
+            reviewHelper = reviewHelper,
+            reviewDao = reviewDao,
+            logDao = logDao,
+            deepSeekApi = deepSeekApi,
+            syncEngine = syncEngine,
+            flashcardRepository = flashcardRepository,
+            habitRepository = habitRepository,
+            reviewNoteRepository = reviewNoteRepository,
+            notebookRepository = notebookRepository,
+            questionBankRepository = questionBankRepository,
+            tickTickRepository = tickTickRepository,
+            lifeLogRepository = lifeLogRepository,
+            pomodoroRecordDao = pomodoroRecordDao,
+            knowledgePointStatsRepository = knowledgePointStatsRepository,
+            apiPreferences = apiPreferences,
+            sharedTransitionScope = this,
             modifier = Modifier.padding(innerPadding)
         )
+        }
     }
 }

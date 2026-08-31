@@ -11,6 +11,13 @@ data class LogEntryEntity(
     val title: String,
     val timeSpent: Int = 0,
     val imagePath: String? = null,
+    val description: String = "",
+    val aiSummary: String = "",
+    val selfCheckContent: String = "",
+    val mindMapJson: String = "",
+    val attachmentPaths: String = "",
+    val attachmentText: String = "",
+    val notebookId: Long? = null,
     val createdDate: Long,
     val updatedDate: Long
 )

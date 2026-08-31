@@ -3,6 +3,7 @@ package com.sunjk.sunjktool.feature.countdown.edit
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sunjk.sunjktool.data.sync.SyncTrigger
 import com.sunjk.sunjktool.domain.model.Countdown
 import com.sunjk.sunjktool.domain.repository.CountdownRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,6 +99,8 @@ class CountdownEditViewModel(
                 )
                 repository.save(countdown)
                 _uiState.update { it.copy(isSaving = false, saveComplete = true) }
+                SyncTrigger.requestAutoSync()
+                SyncTrigger.bumpEntity("countdowns")
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSaving = false) }
             }
