@@ -1,7 +1,7 @@
 
-# 📦 SunJK's ToolBox
+# 📦 云砚
 
-> 🧠 智能学习记录管家 · AI 驱动 · 多端协同 · 知识闭环
+> 🧠 智能学习记录管家 · AI 驱动 · 多端协同 · 知识闭环 · 考研/考公学习助手
 
 <p align="center">
   <img src="screenshots/icon.png" width="128" alt="App Icon">
