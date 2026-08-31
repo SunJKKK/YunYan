@@ -365,6 +365,13 @@ cd SunJK-ToolBox
 3. 添加第一条学习记录
 4. 体验 AI 总结、闪卡生成等功能
 
+### 📥 下载
+
+- **推荐**：[GitHub Releases](https://github.com/SunJKKK/YunYan/releases)（获取最新稳定版及更新日志）
+- 备用网盘：[123 云盘](https://1816302603.share.123pan.cn/123pan/ffvqVv-tP8mv)
+
+
+
 ---
 
 ## 📄 License
