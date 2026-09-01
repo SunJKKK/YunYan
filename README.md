@@ -1,7 +1,7 @@
 
-# 📦 SunJK's ToolBox
+# 📦 云砚
 
-> 🧠 智能学习记录管家 · AI 驱动 · 多端协同 · 知识闭环
+> 🧠 智能学习记录管家 · AI 驱动 · 多端协同 · 知识闭环 · 考研/考公学习助手
 
 <p align="center">
   <img src="screenshots/icon.png" width="128" alt="App Icon">
@@ -55,11 +55,11 @@
 
 | 首页 | 学习记录 | AI 总结 | 闪卡答题 |
 |:---:|:---:|:---:|:---:|
-| ![首页](screenshots/home.png) | ![记录](screenshots/records.png) | ![总结](screenshots/ai_summary.png) | ![闪卡](screenshots/flashcard.png) |
+| ![首页](screenshots/home.jpg) | ![记录](screenshots/records.jpg) | ![总结](screenshots/ai_summary.jpg) | ![闪卡](screenshots/flashcard.jpg) |
 
 | 笔记本 | 题集 | 概览日历 | 设置 |
 |:---:|:---:|:---:|:---:|
-| ![笔记本](screenshots/notebook.png) | ![题集](screenshots/quiz.png) | ![概览](screenshots/overview.png) | ![设置](screenshots/settings.png) |
+| ![笔记本](screenshots/notebook.jpg) | ![题集](screenshots/quiz.jpg) | ![概览](screenshots/overview.jpg) | ![设置](screenshots/settings.jpg) |
 
 
 
@@ -108,8 +108,6 @@
 
 > 📌 **使用场景**：上网课时截屏板书 → 上传图片 → OCR 自动提取文字 → 一键生成笔记
 
-<!-- 截图：学习记录列表 + 添加界面 -->
-![学习记录详情](screenshots/record_detail.png)
 
 ---
 
@@ -128,8 +126,6 @@
   - 🟡 **重点** → 黄色底色
 - **重新生成**：不满意可随时重新生成，支持切换模式
 
-<!-- 截图：三种模式对比 + 颜色标注效果 -->
-![AI总结模式](screenshots/ai_modes.png)
 
 ---
 
@@ -153,8 +149,7 @@
 | 📂 **来源**（多选） | OCR 识别 / 描述 / AI 总结 |
 | 📋 **题型**（多选） | 判断 / 单选 / 多选 / 记忆卡片 |
 
-<!-- 截图：详情页 + 闪卡生成设置弹窗 -->
-![闪卡设置](screenshots/flashcard_config.png)
+
 
 ---
 
@@ -169,8 +164,7 @@
 | 🔁 **重复作答** | 卡片右上角显示 **正确率**，随时重练 |
 | 📤 **导出错题** | 一键导出错题至心得模块 |
 
-<!-- 截图：答题界面 + 画板 + 总结页 -->
-![答题界面](screenshots/quiz_interface.png)
+
 
 ---
 
@@ -183,8 +177,7 @@
 - 点击色块 → 显示真实内容
 - 用于 **自我测验记忆效果**，比单纯重读更有效
 
-<!-- 截图：自检模式界面（遮罩状态 + 展开状态） -->
-![自检模式](screenshots/self_check_demo.png)
+
 
 ---
 
@@ -205,8 +198,7 @@
 | 📊 **概览** | 日历视图 + 每日学习数据 |
 | 🛠 **工具** | 全部功能入口 + 设置 |
 
-<!-- 截图：五个Tab切换效果 -->
-![底部导航](screenshots/bottom_nav.png)
+
 
 ---
 
@@ -229,8 +221,7 @@
 - **尺寸切换**：大（占两列） / 小（占一列）
 - **开关控制**：不需要的卡片可关闭
 
-<!-- 截图：首页卡片布局（大小切换对比） -->
-![首页卡片](screenshots/home_cards_layout.png)
+
 
 ---
 
@@ -242,8 +233,7 @@
 | 归属 | 每个学习记录归属一个笔记本 | 每道错题归属一个分类 |
 | 操作 | 创建/编辑/删除/移动 | 创建/编辑/删除/移动 |
 
-<!-- 截图：笔记本列表（展开/折叠） -->
-![笔记本嵌套](screenshots/notebook_nested.png)
+
 
 ---
 
@@ -259,8 +249,6 @@
 3. 利用匹配知识解题并生成解析
 4. 解析格式同样支持 MD+HTML 渲染（概念/易错/重点颜色标注）
 
-<!-- 截图：错题添加 + 解题结果 -->
-![AI解题](screenshots/ai_solve.png)
 
 ---
 
@@ -274,8 +262,7 @@
 - 🔄 复盘任务
 - 📔 生活记录
 
-<!-- 截图：日历 + 详情面板 -->
-![概览日历](screenshots/calendar_overview.png)
+
 
 ---
 
@@ -296,8 +283,6 @@
 
 **生活记录**：填写内容 + 选择预设心情 + 上传图片
 
-<!-- 截图：工具页网格 -->
-![工具页](screenshots/tools_grid.png)
 
 ---
 
@@ -327,8 +312,6 @@
 | 🎨 **主题** | 浅色 / 自动 / 深色 |
 | 🖌️ **动画** | 开关动画（优化墨水屏体验） |
 
-<!-- 截图：设置页各分类 -->
-![设置详情](screenshots/settings_detail.png)
 
 ---
 
@@ -381,6 +364,13 @@ cd SunJK-ToolBox
 2. 创建第一个笔记本
 3. 添加第一条学习记录
 4. 体验 AI 总结、闪卡生成等功能
+
+### 📥 下载
+
+- **推荐**：[GitHub Releases](https://github.com/SunJKKK/YunYan/releases)（获取最新稳定版及更新日志）
+- 备用网盘：[123 云盘](https://1816302603.share.123pan.cn/123pan/ffvqVv-tP8mv)
+
+
 
 ---
 
