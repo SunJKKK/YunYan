@@ -13,6 +13,7 @@ import com.sunjk.sunjktool.domain.model.Question
 import com.sunjk.sunjktool.domain.model.QuestionBankCategory
 import com.sunjk.sunjktool.domain.model.SplitQuestionItem
 import com.sunjk.sunjktool.domain.repository.LogRepository
+import com.sunjk.sunjktool.domain.repository.NotebookRepository
 import com.sunjk.sunjktool.domain.repository.QuestionBankRepository
 import com.sunjk.sunjktool.util.ocr.OcrManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,6 +85,7 @@ class QuestionBankDetailViewModel(
     private val repository: QuestionBankRepository,
     private val deepSeekApi: DeepSeekApi,
     private val logRepository: LogRepository,
+    private val notebookRepository: NotebookRepository,
     private val apiPreferences: ApiPreferences,
     private val categoryId: Long
 ) : ViewModel() {
@@ -305,14 +307,39 @@ class QuestionBankDetailViewModel(
             _uiState.update { it.copy(isGeneratingAnalysis = true, generationProgress = "正在检索相关知识…", generationPhase = "retrieval", showSplitReview = false, newQuestionError = null) }
             try {
                 // Phase 3: Knowledge retrieval
-                val allEntries = logRepository.getAllEntries().first()
-                val summaryContext = allEntries
-                    .filter { it.aiSummary.isNotBlank() }
-                    .take(20)
-                    .joinToString("\n\n---\n\n") { "学习记录「${it.title}」（${it.subject}）：\n${it.aiSummary}" }
-
+                // 按目录路径匹配：题集分类路径（如「行测 / 片段阅读」）对应笔记本同路径（含子目录）下的学习记录
                 val breadcrumbs = repository.getBreadcrumbs(categoryId)
                 val categoryPath = breadcrumbs.joinToString(" / ") { it.second }
+
+                val allEntries = logRepository.getAllEntries().first()
+                val matchedEntries = if (categoryPath.isNotBlank()) {
+                    val notebooks = notebookRepository.getAll().first()
+                    val pathById = buildMap<Long, String> {
+                        for (nb in notebooks) {
+                            var cur = nb
+                            val names = ArrayDeque<String>()
+                            var guard = 0
+                            while (guard++ < 64) {
+                                names.addFirst(cur.name)
+                                val pid = cur.parentId ?: break
+                                cur = notebooks.find { it.id == pid } ?: break
+                            }
+                            put(nb.id, names.joinToString(" / "))
+                        }
+                    }
+                    allEntries.filter { entry ->
+                        val nbPath = entry.notebookId?.let { pathById[it] } ?: return@filter false
+                        (nbPath == categoryPath || nbPath.startsWith("$categoryPath / ")) &&
+                            entry.aiSummary.isNotBlank()
+                    }
+                } else emptyList()
+
+                // 路径无匹配时回退为最近 20 条，保证知识背景不缺席
+                val contextEntries = if (matchedEntries.isNotEmpty()) matchedEntries
+                else allEntries.filter { it.aiSummary.isNotBlank() }.take(20)
+                val summaryContext = contextEntries
+                    .take(20)
+                    .joinToString("\n\n---\n\n") { "学习记录「${it.title}」（${it.subject}）：\n${it.aiSummary}" }
 
                 // Build the full text from split questions (with any user edits)
                 val finalQuestions = state.splitQuestions.map { item ->
@@ -337,7 +364,7 @@ class QuestionBankDetailViewModel(
                             append("（解析正文，自由组织）\n")
                             append("<<<CARD_1>>>\n")
                             append("...\n\n")
-                            append("JSON 字段：type(single_choice/multi_choice/true_false/open)、options(选项数组，open 题为[])、answer(单选填索引数字，多选填 [0,2]，判断填 true/false，open 题填 -1)、knowledgePoint(核心知识点3-10字)\n\n")
+                            append("JSON 字段：type(single_choice/multi_choice/true_false/open)、options(选项数组，open 题为[])、answer(单选填索引数字，多选填 [0,2]，判断填 true/false，open 题填 -1)、knowledgePoint(核心考点，见下方「knowledgePoint 填写规则」)\n\n")
                             append("## 排版\n")
                             append("自由使用 Markdown（标题、列表、表格、粗体斜体等）和 HTML <span style=\"...\"> 标签（color、background-color、font-size、font-weight、font-style、text-decoration），可叠加使用。\n")
                             append("三种底色按语义使用：<span style=\"background-color:#90CAF9\">#90CAF9 概念术语</span>、<span style=\"background-color:#FFF176\">#FFF176 知识点</span>、<span style=\"background-color:#EF9A9A\">#EF9A9A 易错点</span>\n")
@@ -352,7 +379,12 @@ class QuestionBankDetailViewModel(
                                 append("\n题目所属分类：「$categoryPath」，请结合该领域专业知识。\n")
                             }
                             if (summaryContext.isNotBlank()) {
-                                append("相关知识背景（可参考）：\n$summaryContext\n")
+                                append("\n## knowledgePoint 填写规则\n")
+                                append("knowledgePoint 填写本题的「题型/考点」，而不是题目谈论的「题材/话题」。两者区别：题材是题目的内容主题（如教育方法、经济建设），考点是解这道题所用的方法论（如提问方式、结构类型、公式定理）。\n")
+                                append("判定依据是下方「学习记录知识背景」中沉淀的知识点体系——先判断本题属于哪类题型/考点，再用该体系中的术语命名 knowledgePoint，保持与学习记录中的叫法一致。\n")
+                                append("示例：一道片段阅读题，材料讲的是「教育方法」（题材），但根据学习记录中的知识点可知该题属于「后对策类说理结构」（题型），则 knowledgePoint 填「后对策类说理结构」，绝不填「教育方法」。\n")
+                                append("仅当学习记录知识背景中找不到可对应的考点，且题目本身无法归类到任何方法论时，才退而填写最核心的知识概念。3-10 字。\n")
+                                append("\n相关知识背景（来自笔记本「${if (matchedEntries.isNotEmpty()) categoryPath else "全部（未找到路径匹配的笔记本）"}」的学习记录）：\n$summaryContext\n")
                             }
                         },
                         userMessage = buildString {

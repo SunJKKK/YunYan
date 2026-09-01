@@ -68,7 +68,15 @@ data class SettingsUiState(
     val tickTickCompletedMode: String = ApiPreferences.COMPLETED_MODE_ALL,
     val tickTickTesting: Boolean = false,
     val showTickTickWebLogin: Boolean = false,
-    val tickTickTestResult: String? = null
+    val tickTickTestResult: String? = null,
+
+    // About / update check
+    val isCheckingUpdate: Boolean = false,
+    val updateStatusText: String? = null,
+    /** 发现新版本时弹出的对话框：Release 页面地址；关闭对话框后置空 */
+    val updateDialogUrl: String? = null,
+    /** 对话框中展示的新版本号 */
+    val updateDialogVersion: String? = null
 )
 
 class SettingsViewModel(
@@ -358,4 +366,69 @@ class SettingsViewModel(
 
 
     fun getLastSyncTimestamp(): Long = syncPrefs.getLastSyncTimestamp()
+
+    // ---- 关于 / 检查更新 ----
+
+    companion object {
+        private const val REPO_LATEST_RELEASE_API =
+            "https://api.github.com/repos/SunJKKK/YunYan/releases/latest"
+    }
+
+    /**
+     * 对比 GitHub Releases 最新版本与本地版本号（忽略前缀 v，按数字段逐段比较）。
+     * 返回最新版本号；无新版本或失败时返回 null 并写入状态文案。
+     */
+    fun checkUpdate(currentVersion: String) {
+        if (_uiState.value.isCheckingUpdate) return
+        _uiState.value = _uiState.value.copy(
+            isCheckingUpdate = true, updateStatusText = "正在检查更新...",
+            updateDialogUrl = null, updateDialogVersion = null
+        )
+        viewModelScope.launch {
+            try {
+                val (latestVersion, pageUrl) = withContext(Dispatchers.IO) {
+                    val client = okhttp3.OkHttpClient()
+                    val request = okhttp3.Request.Builder()
+                        .url(REPO_LATEST_RELEASE_API)
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                    client.newCall(request).execute().use { resp ->
+                        if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
+                        val body = resp.body?.string() ?: throw IllegalStateException("空响应")
+                        val obj = org.json.JSONObject(body)
+                        (obj.optString("tag_name") to obj.optString("html_url"))
+                    }
+                }
+                val hasNewer = compareVersions(latestVersion.removePrefix("v"), currentVersion.removePrefix("v")) > 0
+                _uiState.value = _uiState.value.copy(
+                    isCheckingUpdate = false,
+                    updateStatusText = if (hasNewer) "发现新版本 $latestVersion"
+                    else "已是最新版本（v$currentVersion）",
+                    updateDialogUrl = if (hasNewer) pageUrl else null,
+                    updateDialogVersion = if (hasNewer) latestVersion else null
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isCheckingUpdate = false,
+                    updateStatusText = "检查失败，请稍后重试"
+                )
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.value = _uiState.value.copy(updateDialogUrl = null, updateDialogVersion = null)
+    }
+
+    /** 逐段数字比较版本号，如 1.5.1 vs 1.4；解析失败的段按 0 处理 */
+    private fun compareVersions(a: String, b: String): Int {
+        val pa = a.split('.').map { it.toIntOrNull() ?: 0 }
+        val pb = b.split('.').map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(pa.size, pb.size)) {
+            val x = pa.getOrNull(i) ?: 0
+            val y = pb.getOrNull(i) ?: 0
+            if (x != y) return x.compareTo(y)
+        }
+        return 0
+    }
 }

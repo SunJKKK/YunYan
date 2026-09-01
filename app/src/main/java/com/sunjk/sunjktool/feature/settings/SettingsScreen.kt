@@ -89,6 +89,32 @@ fun SettingsScreen(
         return
     }
 
+    // 发现新版本 → 弹出下载对话框
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val updateDialogUrl = uiState.updateDialogUrl
+    if (updateDialogUrl != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissUpdateDialog,
+            title = { Text("发现新版本") },
+            text = {
+                Text("最新版本 ${uiState.updateDialogVersion ?: ""} 已发布，是否前往 GitHub 下载？")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissUpdateDialog()
+                    val intent = android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(updateDialogUrl)
+                    )
+                    context.startActivity(intent)
+                }) { Text("前往下载") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissUpdateDialog) { Text("取消") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -720,6 +746,86 @@ fun SettingsScreen(
                             checked = uiState.animationEnabled,
                             onCheckedChange = viewModel::setAnimationEnabled
                         )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ── About Card ─────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val versionName = remember {
+                        try {
+                            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4"
+                        } catch (_: Exception) { "1.4" }
+                    }
+
+                    // 开源仓库
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://github.com/SunJKKK/YunYan")
+                                )
+                                context.startActivity(intent)
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("开源仓库", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "github.com/SunJKKK/YunYan",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // 检查更新
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.checkUpdate(versionName) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("检查更新", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                uiState.updateStatusText ?: "当前版本 v$versionName",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (uiState.updateDialogUrl != null)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (uiState.isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

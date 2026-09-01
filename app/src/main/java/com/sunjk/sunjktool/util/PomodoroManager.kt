@@ -106,8 +106,16 @@ class PomodoroManager(private val appContext: Context) {
 
         val isRunning = getBool("isRunning", false)
         if (!isRunning) {
-            // Restore accumulated stats, resetting if it's a new day
+            // 暂停后被杀进程：恢复统计，并保留未完成的倒计时进度（不回放暂停期间流逝的时间）
+            val phaseName = prefs.getString("phase", "IDLE") ?: "IDLE"
+            val phase = try { PomodoroPhase.valueOf(phaseName) } catch (_: Exception) { PomodoroPhase.IDLE }
+            val remainingSecs = getInt("remainingSecs", 0)
+            val totalSecs = getInt("totalSecs", 0)
             _state.value = PomodoroState(
+                phase = if (remainingSecs > 0 && phase != PomodoroPhase.IDLE) phase else PomodoroPhase.IDLE,
+                remainingSecs = remainingSecs,
+                totalSecs = totalSecs,
+                isRunning = false,
                 workMinutes = workMinutes, breakMinutes = breakMinutes, skipBreak = skipBreak,
                 totalFocusSecs = effectiveFocusSecs,
                 completedCount = effectiveCount,

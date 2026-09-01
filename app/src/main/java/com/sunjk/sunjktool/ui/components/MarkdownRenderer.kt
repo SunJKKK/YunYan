@@ -22,10 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -614,6 +616,30 @@ private fun renderMdTable(rows: List<String>, style: androidx.compose.ui.text.Te
         !cells.all { it.matches(Regex("^[-: ]+$")) }
     }
     if (headerRow.isEmpty()) return
+
+    // 按每列内容最大宽度分配列宽权重：短列窄、长列宽，
+    // 但设上限防止某一列过长时把其他列挤扁（过长内容在占比内换行），设下限防空列塌缩。
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val minWeightPx = with(density) { 28.dp.toPx() }
+    val maxWeightPx = with(density) { 180.dp.toPx() }
+    val weights = remember(parsed, style) {
+        FloatArray(headerRow.size) { col ->
+            var max = 0f
+            val allRows = listOf(headerRow to style.copy(fontWeight = FontWeight.Bold)) +
+                dataRows.map { it to style }
+            for ((row, cellStyle) in allRows) {
+                val cell = row.getOrNull(col) ?: continue
+                if (cell.isEmpty()) continue
+                val w = textMeasurer.measure(
+                    AnnotatedString(cell), cellStyle
+                ).size.width.toFloat()
+                if (w > max) max = w
+            }
+            max.coerceIn(minWeightPx, maxWeightPx)
+        }
+    }
+
     val borderColor = MaterialTheme.colorScheme.outlineVariant
     val dividerColor = borderColor.copy(alpha = 0.5f)
     Column(
@@ -626,7 +652,12 @@ private fun renderMdTable(rows: List<String>, style: androidx.compose.ui.text.Te
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).background(dividerColor.copy(alpha = 0.35f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
             headerRow.forEachIndexed { ci, cell ->
                 if (ci > 0) VerticalDivider(modifier = Modifier.fillMaxHeight().padding(vertical = 2.dp), thickness = 0.5.dp, color = dividerColor)
-                MarkdownInline(cell, style.copy(fontWeight = FontWeight.Bold), Modifier.weight(1f))
+                Box(
+                    modifier = Modifier.weight(weights[ci]).fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MarkdownInline(cell, style.copy(fontWeight = FontWeight.Bold))
+                }
             }
         }
         // Data rows
@@ -635,7 +666,12 @@ private fun renderMdTable(rows: List<String>, style: androidx.compose.ui.text.Te
             Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 10.dp, vertical = 4.dp)) {
                 cells.take(headerRow.size).forEachIndexed { ci, cell ->
                     if (ci > 0) VerticalDivider(modifier = Modifier.fillMaxHeight().padding(vertical = 2.dp), thickness = 0.5.dp, color = dividerColor)
-                    MarkdownInline(cell, style, Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier.weight(weights.getOrElse(ci) { 1f }).fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MarkdownInline(cell, style)
+                    }
                 }
             }
         }

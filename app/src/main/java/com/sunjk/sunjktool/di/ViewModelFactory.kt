@@ -330,12 +330,13 @@ class QuestionBankDetailVMF(
     private val repo: QuestionBankRepository,
     private val deepSeekApi: DeepSeekApi,
     private val logRepo: LogRepository,
+    private val notebookRepo: com.sunjk.sunjktool.domain.repository.NotebookRepository,
     private val apiPreferences: ApiPreferences,
     private val categoryId: Long
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailViewModel(repo, deepSeekApi, logRepo, apiPreferences, categoryId) as T
+        com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailViewModel(repo, deepSeekApi, logRepo, notebookRepo, apiPreferences, categoryId) as T
 }
 
 class QuestionBankEditVMF(

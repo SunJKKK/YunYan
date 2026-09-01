@@ -834,7 +834,7 @@ fun SunJKToolNavHost(
             QuestionBankDetailScreen(
                 viewModel = viewModel(
                     key = "qb_detail_$categoryId",
-                    factory = QuestionBankDetailVMF(questionBankRepository, deepSeekApi, logRepository, apiPreferences, categoryId)
+                    factory = QuestionBankDetailVMF(questionBankRepository, deepSeekApi, logRepository, notebookRepository, apiPreferences, categoryId)
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSubCategory = { subId ->
