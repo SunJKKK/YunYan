@@ -60,6 +60,7 @@ fun SunJKToolScaffold(
     pomodoroRecordDao: com.sunjk.sunjktool.data.local.dao.PomodoroRecordDao,
     knowledgePointStatsRepository: com.sunjk.sunjktool.domain.repository.KnowledgePointStatsRepository,
     apiPreferences: com.sunjk.sunjktool.data.local.ApiPreferences,
+    syncPreferencesManager: com.sunjk.sunjktool.data.sync.SyncPreferencesManager,
     modifier: Modifier = Modifier
 ) {
     val navController: NavHostController = rememberNavController()
@@ -133,6 +134,7 @@ fun SunJKToolScaffold(
             pomodoroRecordDao = pomodoroRecordDao,
             knowledgePointStatsRepository = knowledgePointStatsRepository,
             apiPreferences = apiPreferences,
+            syncPreferencesManager = syncPreferencesManager,
             sharedTransitionScope = this,
             modifier = Modifier.padding(innerPadding)
         )

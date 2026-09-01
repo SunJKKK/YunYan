@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
@@ -80,6 +81,7 @@ import com.sunjk.sunjktool.data.local.dao.ReviewStatusDao
 import com.sunjk.sunjktool.data.local.ApiPreferences
 import com.sunjk.sunjktool.data.remote.DeepSeekApi
 import com.sunjk.sunjktool.data.sync.SyncEngine
+import com.sunjk.sunjktool.data.sync.SyncPreferencesManager
 import com.sunjk.sunjktool.feature.notebook.list.NotebookListScreen
 import com.sunjk.sunjktool.feature.notebook.edit.NotebookEditScreen
 import com.sunjk.sunjktool.feature.notebook.detail.NotebookDetailScreen
@@ -88,7 +90,16 @@ import com.sunjk.sunjktool.feature.questionbank.edit.QuestionBankEditScreen
 import com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailScreen
 import com.sunjk.sunjktool.feature.questionbank.link.QuestionLinkListScreen
 import com.sunjk.sunjktool.feature.questionbank.link.QuestionLinkListViewModel
+import com.sunjk.sunjktool.feature.onboarding.OnboardingScreen
 import com.sunjk.sunjktool.feature.settings.SettingsScreen
+import com.sunjk.sunjktool.feature.settings.SettingsSection
+import com.sunjk.sunjktool.feature.settings.SettingsViewModel
+import com.sunjk.sunjktool.feature.settings.SettingsAboutScreen
+import com.sunjk.sunjktool.feature.settings.SettingsAiScreen
+import com.sunjk.sunjktool.feature.settings.SettingsApiKeysScreen
+import com.sunjk.sunjktool.feature.settings.SettingsDisplayScreen
+import com.sunjk.sunjktool.feature.settings.SettingsTickTickScreen
+import com.sunjk.sunjktool.feature.settings.SettingsWebDavScreen
 import com.sunjk.sunjktool.feature.sync.SyncSettingsScreen
 import com.sunjk.sunjktool.util.PomodoroManager
 import com.sunjk.sunjktool.util.ReviewHelper
@@ -154,6 +165,7 @@ fun SunJKToolNavHost(
     pomodoroRecordDao: com.sunjk.sunjktool.data.local.dao.PomodoroRecordDao,
     knowledgePointStatsRepository: com.sunjk.sunjktool.domain.repository.KnowledgePointStatsRepository,
     apiPreferences: ApiPreferences,
+    syncPreferencesManager: SyncPreferencesManager,
     sharedTransitionScope: SharedTransitionScope? = null,
     modifier: Modifier = Modifier
 ) {
@@ -598,7 +610,110 @@ fun SunJKToolNavHost(
         ) {
             SettingsScreen(
                 viewModel = viewModel(factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository)),
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateTo = { section ->
+                    val route = when (section) {
+                        SettingsSection.API_KEYS -> Screen.SettingsApiKeys.route
+                        SettingsSection.AI -> Screen.SettingsAi.route
+                        SettingsSection.WEBDAV -> Screen.SettingsWebDav.route
+                        SettingsSection.TICKTICK -> Screen.SettingsTickTick.route
+                        SettingsSection.DISPLAY -> Screen.SettingsDisplay.route
+                        SettingsSection.ABOUT -> Screen.SettingsAbout.route
+                    }
+                    navController.navigate(route)
+                }
+            )
+        }
+
+        // ---- 设置二级页面: Screen.SettingsApiKeys ----
+        composable(
+            route = Screen.SettingsApiKeys.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsApiKeysScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        // ---- 设置二级页面: Screen.SettingsAi ----
+        composable(
+            route = Screen.SettingsAi.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsAiScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        // ---- 设置二级页面: Screen.SettingsWebDav ----
+        composable(
+            route = Screen.SettingsWebDav.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsWebDavScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        // ---- 设置二级页面: Screen.SettingsTickTick ----
+        composable(
+            route = Screen.SettingsTickTick.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsTickTickScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        // ---- 设置二级页面: Screen.SettingsDisplay ----
+        composable(
+            route = Screen.SettingsDisplay.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsDisplayScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        // ---- 设置二级页面: Screen.SettingsAbout ----
+        composable(
+            route = Screen.SettingsAbout.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { entry ->
+            val settingsEntry = remember(entry) { navController.getBackStackEntry(Screen.Settings.route) }
+            val vm: SettingsViewModel = viewModel(viewModelStoreOwner = settingsEntry, factory = SettingsVMF(syncEngine, apiPreferences, tickTickRepository))
+            SettingsAboutScreen(viewModel = vm, onBack = { navController.popBackStack() }, onNavigateToOnboarding = { navController.navigate(Screen.Onboarding.route) })
+        }
+
+        composable(
+            route = Screen.Onboarding.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) {
+            OnboardingScreen(
+                apiPreferences = apiPreferences,
+                syncPreferencesManager = syncPreferencesManager,
+                onFinished = { navController.popBackStack() }
             )
         }
 

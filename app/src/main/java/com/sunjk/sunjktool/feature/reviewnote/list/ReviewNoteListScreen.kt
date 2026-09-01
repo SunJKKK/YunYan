@@ -133,7 +133,7 @@ private fun ReviewNoteCard(
                     Text(
                         badgeText,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
+
                         color = badgeColor,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )

@@ -104,11 +104,11 @@ fun DeepSeekScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("充值", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(String.format("%.2f", uiState.balance.toppedUpBalance), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                                Text(String.format("%.2f", uiState.balance.toppedUpBalance), style = MaterialTheme.typography.titleMedium)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("赠送", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(String.format("%.2f", uiState.balance.grantedBalance), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                                Text(String.format("%.2f", uiState.balance.grantedBalance), style = MaterialTheme.typography.titleMedium)
                             }
                         }
                     }

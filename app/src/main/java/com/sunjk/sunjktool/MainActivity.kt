@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.sunjk.sunjktool.data.local.ApiPreferences
+import com.sunjk.sunjktool.feature.onboarding.OnboardingScreen
 import com.sunjk.sunjktool.ui.components.SunJKToolScaffold
 import com.sunjk.sunjktool.ui.theme.LocalAnimationEnabled
 import com.sunjk.sunjktool.ui.theme.SunJKToolTheme
@@ -53,6 +54,18 @@ class MainActivity : ComponentActivity() {
                 SunJKToolTheme(darkTheme = darkTheme) {
                     val animationsEnabled = c.apiPreferences.isAnimationEnabled()
                     CompositionLocalProvider(LocalAnimationEnabled provides animationsEnabled) {
+                    var onboarded by remember { mutableStateOf(c.apiPreferences.isOnboarded()) }
+                    if (!onboarded) {
+                        // 首次安装启动：展示引导页（欢迎/功能/配置/权限）
+                        OnboardingScreen(
+                            apiPreferences = c.apiPreferences,
+                            syncPreferencesManager = c.syncPreferencesManager,
+                            onFinished = {
+                                c.apiPreferences.setOnboarded(true)
+                                onboarded = true
+                            },
+                        )
+                    } else {
                     SunJKToolScaffold(
                         logRepository = c.logRepository,
                         countdownRepository = c.countdownRepository,
@@ -74,8 +87,10 @@ class MainActivity : ComponentActivity() {
                         lifeLogRepository = c.lifeLogRepository,
                         pomodoroRecordDao = c.pomodoroRecordDao,
                         knowledgePointStatsRepository = c.knowledgePointStatsRepository,
-                        apiPreferences = c.apiPreferences
+                        apiPreferences = c.apiPreferences,
+                        syncPreferencesManager = c.syncPreferencesManager
                     )
+                    }
                     }
                 }
             }

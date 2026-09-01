@@ -264,7 +264,7 @@ fun CompactLearningHeatmap(
                     text = "本月已学 ${monthStats.first} 天",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
+
                 )
                 Text(
                     text = "共 ${monthStats.second} 条记录",

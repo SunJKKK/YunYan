@@ -37,6 +37,13 @@ sealed class Screen(val route: String) {
             else "habit/edit?habitId=-1"
     }
     data object Settings : Screen("settings")
+    data object Onboarding : Screen("onboarding")
+    data object SettingsApiKeys : Screen("settings/api_keys")
+    data object SettingsAi : Screen("settings/ai")
+    data object SettingsWebDav : Screen("settings/webdav")
+    data object SettingsTickTick : Screen("settings/ticktick")
+    data object SettingsDisplay : Screen("settings/display")
+    data object SettingsAbout : Screen("settings/about")
     data object SyncSettings : Screen("sync/settings")
     data object Flashcard : Screen("learning_log/{logId}/flashcard?sessionId={sessionId}") {
         fun createRoute(logId: Long, sessionId: Long? = null): String =

@@ -315,7 +315,7 @@ private fun TrueFalseContent(card: Flashcard.TrueFalse, viewModel: FlashcardView
     val ans = uiState.userAnswers[uiState.currentCardIndex] as? UserAnswer.TrueFalse
     val isAnswered = ans != null
 
-    Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+    Text(card.question, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(20.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         val correctBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
@@ -364,7 +364,7 @@ private fun SingleChoiceContent(card: Flashcard.SingleChoice, viewModel: Flashca
     val ans = uiState.userAnswers[uiState.currentCardIndex] as? UserAnswer.SingleChoice
     val isAnswered = ans != null
 
-    Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+    Text(card.question, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(16.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         card.options.forEachIndexed { idx, option ->
@@ -414,7 +414,7 @@ private fun MultiChoiceContent(card: Flashcard.MultiChoice, viewModel: Flashcard
     val ans = uiState.userAnswers[uiState.currentCardIndex] as? UserAnswer.MultiChoiceChoice
     val isConfirmed = ans?.confirmed == true
 
-    Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+    Text(card.question, style = MaterialTheme.typography.titleMedium)
     Text("可多选", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Spacer(Modifier.height(12.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

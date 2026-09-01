@@ -429,7 +429,7 @@ private fun WeatherInfoItem(label: String, value: String, modifier: Modifier = M
             Text(
                 value,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+
             )
         }
     }

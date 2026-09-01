@@ -3,6 +3,7 @@ package com.sunjk.sunjktool.feature.learninglog.detail
 import android.content.ContentValues
 import android.content.Context
 import android.os.Environment
+import android.util.Log
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -564,10 +565,9 @@ private fun FullscreenImageGallery(
                 Text(
                     text = "${pagerState.currentPage + 1} / ${files.size}",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
                     color = Color.White,
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
+
                         .padding(bottom = 16.dp)
                 )
             }
@@ -752,13 +752,22 @@ private fun SummaryTab(
 
     // 手机端：有内容且非编辑/生成时，按章节分块渲染（支持初始定位 + 章节被引用入口）
     if (!uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank()) {
-        MobileSectionedSummary(
-            summary = summary,
-            uiState = uiState,
-            viewModel = viewModel,
-            initialHeading = initialHeading,
-            onNavigateToQuestionLinks = onNavigateToQuestionLinks
-        )
+        if (initialHeading != null) {
+            MobileSectionedSummary(
+                summary = summary,
+                uiState = uiState,
+                viewModel = viewModel,
+                initialHeading = initialHeading,
+                onNavigateToQuestionLinks = onNavigateToQuestionLinks
+            )
+        } else {
+            EagerMobileSummary(
+                summary = summary,
+                uiState = uiState,
+                viewModel = viewModel,
+                onNavigateToQuestionLinks = onNavigateToQuestionLinks
+            )
+        }
         return
     }
 
@@ -857,6 +866,43 @@ private fun SummaryTab(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EagerMobileSummary(
+    summary: String,
+    uiState: LogDetailUiState,
+    viewModel: LogDetailViewModel,
+    onNavigateToQuestionLinks: (Long, String) -> Unit
+) {
+    val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
+    val sectionBlocks = remember(sections) { sections.map { it to splitMarkdownBlocks(it.body) } }
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text("AI 总结", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        sectionBlocks.forEach { (section, blocks) ->
+            val heading = section.heading
+            heading?.let {
+                SectionHeading(it, uiState.referenceCounts[it.headingId] ?: 0) { headingId ->
+                    uiState.entry?.id?.let { entryId -> onNavigateToQuestionLinks(entryId, headingId) }
+                }
+            }
+            blocks.forEach { block -> MarkdownRenderer(block.content) }
+        }
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = { viewModel.showSummaryModeDialog() },
+            enabled = !uiState.isGeneratingFlashcards,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("重新生成 AI 总结")
         }
     }
 }
@@ -1024,14 +1070,23 @@ private fun SummaryDualPane(
                     modifier = Modifier.width(280.dp)
                 )
             }
-            SectionedSummary(
-                sections = sections,
-                listState = listState,
-                modifier = Modifier.weight(1f),
-                referenceCounts = referenceCounts,
-                onReferenceClick = onReferenceClick,
-                initialHeading = initialHeading
-            )
+            if (initialHeading != null) {
+                SectionedSummary(
+                    sections = sections,
+                    listState = listState,
+                    modifier = Modifier.weight(1f),
+                    referenceCounts = referenceCounts,
+                    onReferenceClick = onReferenceClick,
+                    initialHeading = initialHeading
+                )
+            } else {
+                EagerTabletSummary(
+                    sections = sections,
+                    modifier = Modifier.weight(1f),
+                    referenceCounts = referenceCounts,
+                    onReferenceClick = onReferenceClick
+                )
+            }
             if (outlineExpanded && !outlineOnLeft) {
                 OutlinePanel(
                     items = outlineItems,
@@ -1060,6 +1115,28 @@ private fun buildSummaryLazyItems(sections: List<MarkdownSection>): List<Summary
         section.heading?.let { add(SummaryLazyItem("$sectionKey-heading", section, true)) }
         splitMarkdownBlocks(section.body).forEach { block ->
             add(SummaryLazyItem("$sectionKey-${block.key}", section, false, block))
+        }
+    }
+}
+
+@Composable
+private fun EagerTabletSummary(
+    sections: List<MarkdownSection>,
+    modifier: Modifier,
+    referenceCounts: Map<String, Int>,
+    onReferenceClick: ((String) -> Unit)?
+) {
+    val items = remember(sections) { buildSummaryLazyItems(sections) }
+    Column(
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+    ) {
+        items.forEach { item ->
+            val heading = item.section.heading
+            if (item.isHeading && heading != null) {
+                SectionHeading(heading, referenceCounts[heading.headingId] ?: 0, onReferenceClick)
+            } else {
+                item.block?.let { MarkdownRenderer(it.content) }
+            }
         }
     }
 }
@@ -1336,7 +1413,7 @@ private fun ReviewNotesTab(
                                 com.sunjk.sunjktool.domain.model.ReviewNoteSource.MANUAL -> "手动记录" to MaterialTheme.colorScheme.primary
                             }
                             Surface(shape = MaterialTheme.shapes.small, color = badgeColor.copy(alpha = 0.15f)) {
-                                Text(badgeText, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = badgeColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                                Text(badgeText, style = MaterialTheme.typography.labelSmall, color = badgeColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                             }
                             Spacer(Modifier.weight(1f))
                             Text(formatDateTime(note.createdDate), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))

@@ -284,7 +284,7 @@ fun HomeScreen(
                                     Column(Modifier.padding(12.dp)) {
                                         val pending = items.count { !it.isCompleted }
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("${pending}项待复盘", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                            Text("${pending}项待复盘", style = MaterialTheme.typography.bodyMedium)
                                             Spacer(Modifier.weight(1f))
                                             Text("查看全部", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onNavigateToReview() })
                                         }
@@ -615,7 +615,6 @@ private fun CountdownHomeModule(countdown: Countdown?, isLarge: Boolean, onClick
                             else -> "已过${-daysRemaining}天"
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
                         color = countColor
                     )
                 }

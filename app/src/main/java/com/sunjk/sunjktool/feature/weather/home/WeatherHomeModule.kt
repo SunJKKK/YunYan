@@ -219,7 +219,7 @@ private fun WeatherLargeSuccessContent(data: WeatherBundle) {
                         Text(
                             text = value,
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
+
                             maxLines = 1
                         )
                         Text(
@@ -256,7 +256,7 @@ private fun WeatherLargeSuccessContent(data: WeatherBundle) {
                         Text(
                             text = "${day.tempMax.removeSuffix("°")}°",
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium
+
                         )
                         Text(
                             text = "${day.tempMin.removeSuffix("°")}°",
@@ -402,7 +402,7 @@ private fun WeatherSuccessContent(data: WeatherBundle) {
                 Text(
                     text = "明天 ${data.tomorrowTextDay}",
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium
+
                 )
                 Text(
                     text = "${data.tomorrowTempMin}° ~ ${data.tomorrowTempMax}°",

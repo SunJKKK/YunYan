@@ -101,6 +101,10 @@ class ApiPreferences(context: Context) {
     fun getSummaryIntegrateModel(): String = prefs.getString(KEY_SUMMARY_INTEGRATE_MODEL, MODEL_V4_PRO) ?: MODEL_V4_PRO
     fun setSummaryIntegrateModel(model: String) = prefs.edit().putString(KEY_SUMMARY_INTEGRATE_MODEL, model).apply()
 
+    // ---- Onboarding（首次启动引导） ----
+    fun isOnboarded(): Boolean = prefs.getBoolean(KEY_ONBOARDED, false)
+    fun setOnboarded(onboarded: Boolean) = prefs.edit().putBoolean(KEY_ONBOARDED, onboarded).apply()
+
     // ---- Theme Mode ----
     /** Returns "system", "light", or "dark" */
     fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM) ?: THEME_MODE_SYSTEM
@@ -136,6 +140,7 @@ class ApiPreferences(context: Context) {
         private const val KEY_TICKTICK_PASSWORD = "ticktick_password"
         private const val KEY_ANIMATION_ENABLED = "animations_enabled"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_ONBOARDED = "onboarded"
 
         const val MODEL_V4_PRO = "deepseek-v4-pro"
         const val MODEL_V4_FLASH = "deepseek-v4-flash"

@@ -105,7 +105,7 @@ fun PomodoroHomeModule(
                     phaseText,
                     style = if (isLarge) MaterialTheme.typography.titleMedium
                     else MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+
                 )
                 if (isActive) {
                     Text(

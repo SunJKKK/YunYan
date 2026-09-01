@@ -164,7 +164,7 @@ fun PomodoroHistoryScreen(
                                 Text(
                                     rec.date,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
+
                                 )
                                 Text(
                                     "完成 ${rec.completedCount} 个番茄钟",

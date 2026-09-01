@@ -487,7 +487,7 @@ fun FlashcardHubScreen(
                             Row(modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("第${summary.index}组 · ${summary.cardCount}张卡片", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                        Text("第${summary.index}组 · ${summary.cardCount}张卡片", style = MaterialTheme.typography.bodyMedium)
                                         Spacer(Modifier.width(8.dp))
                                         Surface(
                                             shape = MaterialTheme.shapes.small,
@@ -562,7 +562,7 @@ fun FlashcardHubScreen(
                                         is com.sunjk.sunjktool.domain.model.Flashcard.SingleChoice -> wrongAns.card.question.take(20)
                                         is com.sunjk.sunjktool.domain.model.Flashcard.MultiChoice -> wrongAns.card.question.take(20)
                                         is com.sunjk.sunjktool.domain.model.Flashcard.Memory -> wrongAns.card.front.take(20)
-                                    }}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                    }}", style = MaterialTheme.typography.bodySmall)
                                     Text("第${wrongAns.sessionIndex}组 · 闪卡 #${wrongAns.cardIndex + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
@@ -605,7 +605,7 @@ internal fun CorrectnessBox(totalAttempts: Int, correctCount: Int) {
     ) {
         Text(
             " ${ratePct}%  ${correctCount}/${totalAttempts} ",
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.labelSmall,
             color = textColor,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )

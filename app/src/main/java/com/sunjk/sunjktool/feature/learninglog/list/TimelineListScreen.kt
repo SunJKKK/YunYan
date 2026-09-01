@@ -302,7 +302,6 @@ private fun TimelineEntryCard(
                     Text(
                         text = entry.title,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
