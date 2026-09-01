@@ -124,7 +124,7 @@ fun DeepSeekScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("余额趋势 (近30天)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("余额趋势 (近7天)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(8.dp))
                             val values = uiState.history.map { it.totalBalance.toFloat() }
                             val minVal = values.min()

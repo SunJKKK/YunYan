@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface QuestionDao {
 
-    @Query("SELECT * FROM questions WHERE categoryId = :categoryId ORDER BY sortOrder ASC, createdDate ASC")
+    @Query("SELECT * FROM questions WHERE categoryId = :categoryId ORDER BY sortOrder ASC, createdDate DESC")
     fun getByCategoryId(categoryId: Long): Flow<List<QuestionEntity>>
 
     @Query("SELECT * FROM questions WHERE id = :id")

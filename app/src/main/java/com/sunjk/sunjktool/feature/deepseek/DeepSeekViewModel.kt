@@ -33,7 +33,7 @@ class DeepSeekViewModel(
             }
         }
         viewModelScope.launch {
-            repository.getHistory(30).collect { pts ->
+            repository.getHistory(7).collect { pts ->
                 _uiState.value = _uiState.value.copy(history = pts)
             }
         }

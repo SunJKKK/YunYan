@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
-enum class AiTaskType { SUMMARY, FLASHCARDS, SELF_CHECK }
+enum class AiTaskType { SUMMARY, FLASHCARDS, SELF_CHECK, QUESTION_BANK }
 
 enum class AiTaskStatus { RUNNING, SUCCESS, ERROR }
 

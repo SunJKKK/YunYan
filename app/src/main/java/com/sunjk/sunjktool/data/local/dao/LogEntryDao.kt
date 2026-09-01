@@ -49,4 +49,7 @@ interface LogEntryDao {
 
     @Query("SELECT COUNT(*) FROM log_entries WHERE notebookId IS NULL")
     fun countUnfiled(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM log_entries WHERE notebookId IN (:notebookIds)")
+    suspend fun countByNotebookIds(notebookIds: List<Long>): Int
 }

@@ -48,6 +48,10 @@ class NotebookRepositoryImpl(
     private suspend fun NotebookEntity.toDomainWithCounts(): Notebook {
         val subCount = notebookDao.getSubNotebookCount(id).firstOrNull() ?: 0
         val entCount = notebookDao.getEntryCount(id).firstOrNull() ?: 0
+        // 递归统计所有后代笔记本及其记录数
+        val descendantIds = getDescendantIds(id)
+        val descendantEntryCount = if (descendantIds.isEmpty()) 0
+            else logEntryDao.countByNotebookIds(descendantIds.toList())
         return Notebook(
             id = id,
             name = name,
@@ -57,6 +61,8 @@ class NotebookRepositoryImpl(
             pinned = pinned,
             subNotebookCount = subCount,
             entryCount = entCount,
+            totalSubNotebookCount = descendantIds.size,
+            totalEntryCount = entCount + descendantEntryCount,
             createdDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(createdDate), ZoneId.systemDefault()),
             updatedDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(updatedDate), ZoneId.systemDefault())
         )

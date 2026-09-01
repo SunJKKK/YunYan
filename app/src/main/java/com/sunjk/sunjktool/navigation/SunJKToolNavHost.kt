@@ -223,6 +223,7 @@ fun SunJKToolNavHost(
                         com.sunjk.sunjktool.di.AiTaskType.SUMMARY,
                         com.sunjk.sunjktool.di.AiTaskType.SELF_CHECK -> navController.navigate(Screen.LogDetail.createRoute(task.logId))
                         com.sunjk.sunjktool.di.AiTaskType.FLASHCARDS -> navController.navigate(Screen.FlashcardHub.createRoute(task.logId))
+                        com.sunjk.sunjktool.di.AiTaskType.QUESTION_BANK -> navController.navigate(Screen.QuestionBankDetail.createRoute(task.logId))
                     }
                 }
             )

@@ -4,11 +4,11 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,15 +16,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -32,10 +39,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -44,14 +56,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-
-
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sunjk.sunjktool.ui.components.ConfirmDialog
 import com.sunjk.sunjktool.domain.model.PomodoroPhase
+import com.sunjk.sunjktool.ui.components.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +106,10 @@ fun PomodoroScreen(
                     IconButton(onClick = onNavigateToHistory) {
                         Icon(Icons.Default.DateRange, "历史记录")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { innerPadding ->
@@ -103,11 +118,12 @@ fun PomodoroScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Progress ring
-            val progressColor = MaterialTheme.colorScheme.primary
+            // Progress ring：外层圆形底 + 进度圆环 + 中心时间与阶段胶囊
+            val progressColor = if (pomodoroState.phase == PomodoroPhase.BREAK)
+                MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
             val trackColor = MaterialTheme.colorScheme.surfaceVariant
             val ringShared = sharedTransitionScope?.let { s ->
                 with(s) {
@@ -116,12 +132,16 @@ fun PomodoroScreen(
                     } ?: Modifier
                 }
             } ?: Modifier
-            Box(contentAlignment = Alignment.Center, modifier = ringShared.size(220.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = ringShared.size(260.dp)) {
+                // 圆形底色容器 + 进度圆环
+                val circleColor = MaterialTheme.colorScheme.surfaceContainerLow
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeW = 12.dp.toPx()
-                    val topLeft = Offset(strokeW / 2, strokeW / 2)
-                    val arcSize = Size(size.width - strokeW, size.height - strokeW)
-                    // Background arc
+                    drawCircle(color = circleColor)
+                    // 进度圆环
+                    val strokeW = 14.dp.toPx()
+                    val inset = strokeW / 2 + 8.dp.toPx()
+                    val topLeft = Offset(inset, inset)
+                    val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
                     drawArc(
                         color = trackColor,
                         startAngle = -90f, sweepAngle = 360f,
@@ -129,7 +149,6 @@ fun PomodoroScreen(
                         topLeft = topLeft, size = arcSize,
                         style = Stroke(width = strokeW, cap = StrokeCap.Round)
                     )
-                    // Progress arc
                     drawArc(
                         color = progressColor,
                         startAngle = -90f,
@@ -140,110 +159,200 @@ fun PomodoroScreen(
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(timeText, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
-                    Text(phaseText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        timeText,
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    // 阶段胶囊标签
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = if (isActive) progressColor.copy(alpha = 0.14f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            phaseText,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (isActive) progressColor
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            // Preset buttons
-            if (!isActive) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(30 to "30分钟", 60 to "1小时", 120 to "2小时").forEach { (min, label) ->
-                        FilledTonalButton(
-                            onClick = { viewModel.setWorkMinutes(min) },
-                            modifier = Modifier.weight(1f)
-                        ) { Text(label, style = MaterialTheme.typography.labelLarge) }
-                    }
-                }
+            // 进行中：轮次信息
+            if (isActive) {
                 Spacer(Modifier.height(20.dp))
-
-                Text("工作时长: ${uiState.workMinutes}分钟", style = MaterialTheme.typography.bodyMedium)
-                Slider(
-                    value = uiState.workMinutes.toFloat(),
-                    onValueChange = { viewModel.setWorkMinutes(it.toInt()) },
-                    valueRange = 5f..120f, steps = 22,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("完成后自动休息", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = !uiState.skipBreak, onCheckedChange = { viewModel.setSkipBreak(!it) })
-                }
-                if (!uiState.skipBreak) {
-                    Text("休息时长: ${uiState.breakMinutes}分钟", style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = uiState.breakMinutes.toFloat(),
-                        onValueChange = { viewModel.setBreakMinutes(it.toInt()) },
-                        valueRange = 5f..60f, steps = 10,
-                        modifier = Modifier.fillMaxWidth()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = progressColor
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "第 ${pomodoroState.completedCount + 1} 个番茄 · 完成后休息 ${uiState.breakMinutes} 分钟",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            } else {
+                Spacer(Modifier.height(20.dp))
 
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
+                // 时长设置卡片
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "时长设置",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
 
+                        // 预设分段按钮
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            listOf(30 to "30分钟", 60 to "1小时", 120 to "2小时")
+                                .forEachIndexed { index, (min, label) ->
+                                    SegmentedButton(
+                                        selected = uiState.workMinutes == min,
+                                        onClick = { viewModel.setWorkMinutes(min) },
+                                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                                        label = { Text(label, style = MaterialTheme.typography.labelLarge) }
+                                    )
+                                }
+                        }
+
+                        // 工作时长滑杆（5 分钟一档）
+                        Text(
+                            "工作时长：${uiState.workMinutes} 分钟",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Slider(
+                            value = uiState.workMinutes.toFloat(),
+                            onValueChange = { viewModel.setWorkMinutes((it / 5).toInt() * 5) },
+                            valueRange = 5f..120f, steps = 22,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "完成后自动休息",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(checked = !uiState.skipBreak, onCheckedChange = { viewModel.setSkipBreak(!it) })
+                        }
+                        if (!uiState.skipBreak) {
+                            Text(
+                                "休息时长：${uiState.breakMinutes} 分钟",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Slider(
+                                value = uiState.breakMinutes.toFloat(),
+                                onValueChange = { viewModel.setBreakMinutes((it / 5).toInt() * 5) },
+                                valueRange = 5f..60f, steps = 10,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // Control buttons
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (!isActive) {
-                    Button(
-                        onClick = { viewModel.start() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("开始")
-                    }
-                } else {
+            // 控制按钮
+            if (!isActive) {
+                Button(
+                    onClick = { viewModel.start() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("开始专注", style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (isRunning) {
                         Button(
                             onClick = { viewModel.pause() },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            Icon(Icons.Default.Pause, null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("暂停")
+                            Icon(Icons.Default.Pause, null, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("暂停", style = MaterialTheme.typography.titleMedium)
                         }
                     } else {
                         Button(
                             onClick = { viewModel.resume() },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("继续")
+                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("继续", style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    Button(
+                    FilledTonalButton(
                         onClick = { viewModel.preStop() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     ) {
-                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("停止")
+                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("结束", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // Stats
+            // 今日统计卡片
             val totalFocusMins = pomodoroState.totalFocusSecs / 60
             val focusHours = totalFocusMins / 60
             val focusMins = totalFocusMins % 60
-            val focusText = if (focusHours > 0) "${focusHours}小时${focusMins}分钟" else "${focusMins}分钟"
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Text("今日专注: $focusText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("今日完成: ${pomodoroState.completedCount}个", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val focusText = if (focusHours > 0) "${focusHours}小时${focusMins}分" else "${focusMins}分钟"
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatCard(
+                    icon = Icons.Default.Whatshot,
+                    value = focusText,
+                    label = "今日专注",
+                    modifier = Modifier.weight(1f)
+                )
+                StatCard(
+                    icon = Icons.Default.CheckCircle,
+                    value = "${pomodoroState.completedCount} 个",
+                    label = "今日完成",
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             // Confirm dialog: keep or discard elapsed time
@@ -258,6 +367,46 @@ fun PomodoroScreen(
                     onDismiss = { viewModel.confirmStop(false) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun StatCard(
+    icon: ImageVector,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

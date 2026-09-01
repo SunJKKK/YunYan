@@ -14,12 +14,14 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,12 +35,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -76,6 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -109,6 +114,9 @@ fun QuestionBankDetailScreen(
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // 一键直达：生成进度改用页面进度卡片展示，不使用生成解析对话框
+    val isDirectGenerating = uiState.isGeneratingAnalysis && uiState.questionBankAutoSave
 
     // Image launchers
     var cropFile by remember { mutableStateOf<String?>(null) }
@@ -218,7 +226,7 @@ fun QuestionBankDetailScreen(
     }
 
     // New question form
-    if (uiState.isCreatingQuestion) {
+    if (uiState.isCreatingQuestion && !isDirectGenerating) {
         AlertDialog(
             onDismissRequest = {
                 if (!uiState.isGeneratingAnalysis && !uiState.isSavingQuestions) {
@@ -470,6 +478,7 @@ fun QuestionBankDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0.dp),
                 title = {
                     Text(
                         text = uiState.category?.name ?: "题集",
@@ -506,6 +515,17 @@ fun QuestionBankDetailScreen(
         },
         modifier = modifier
     ) { innerPadding ->
+        // 一键直达：生成进度以页面卡片展示，不使用生成解析对话框
+        if (isDirectGenerating) {
+            QuestionGenerationProgressCard(
+                phase = uiState.generationPhase,
+                progressText = uiState.generationProgress,
+                error = uiState.newQuestionError,
+                modifier = Modifier.padding(innerPadding)
+            )
+            return@Scaffold
+        }
+
         val showEmpty = uiState.subCategories.isEmpty() && uiState.questions.isEmpty()
 
         if (showEmpty) {
@@ -961,5 +981,125 @@ private fun buildAnswerText(card: ParsedCard): String = buildString {
                 card.answerBool == false -> append("答案：错误 ✗")
             }
         }
+    }
+}
+
+
+// ── 题集一键直达：生成进度卡片（仿学习记录 AI 总结风格）──────────────
+
+private enum class QbStepState { DONE, IN_PROGRESS, PENDING }
+
+@Composable
+private fun QuestionGenerationProgressCard(
+    phase: String,
+    progressText: String,
+    error: String?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "正在生成题目…",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(12.dp))
+
+            QbStepRow(
+                label = "图片文字识别",
+                state = qbStepState(phase, doneIn = setOf("split", "retrieval", "generation"), inProgressIn = "ocr")
+            )
+            QbStepRow(
+                label = "题目拆分",
+                state = qbStepState(phase, doneIn = setOf("retrieval", "generation"), inProgressIn = "split")
+            )
+            QbStepRow(
+                label = "知识检索",
+                state = qbStepState(phase, doneIn = setOf("generation"), inProgressIn = "retrieval")
+            )
+            QbStepRow(
+                label = "解析生成",
+                state = qbStepState(phase, doneIn = setOf("idle"), inProgressIn = "generation")
+            )
+
+            if (progressText.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = progressText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            error?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+private fun qbStepState(phase: String, doneIn: Set<String>, inProgressIn: String): QbStepState =
+    when {
+        phase in doneIn -> QbStepState.DONE
+        phase == inProgressIn -> QbStepState.IN_PROGRESS
+        else -> QbStepState.PENDING
+    }
+
+@Composable
+private fun QbStepRow(label: String, state: QbStepState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        when (state) {
+            QbStepState.DONE -> {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            QbStepState.IN_PROGRESS -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            QbStepState.PENDING -> {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(7.dp)
+                        )
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = when (state) {
+                QbStepState.DONE, QbStepState.IN_PROGRESS -> MaterialTheme.colorScheme.onSurface
+                QbStepState.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            }
+        )
     }
 }
