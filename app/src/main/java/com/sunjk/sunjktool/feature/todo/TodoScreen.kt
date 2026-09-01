@@ -40,7 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -281,7 +281,7 @@ private fun AddTaskDialog(
         title = { Text("新建任务") },
         text = {
             Column {
-                OutlinedTextField(
+                TextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("任务标题") },

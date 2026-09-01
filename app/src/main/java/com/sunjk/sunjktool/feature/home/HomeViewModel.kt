@@ -24,6 +24,7 @@ import com.sunjk.sunjktool.data.local.dao.ReviewStatusDao
 import com.sunjk.sunjktool.domain.repository.DeepSeekRepository
 import com.sunjk.sunjktool.util.PomodoroManager
 import com.sunjk.sunjktool.util.ReviewHelper
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
@@ -84,6 +85,9 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private var weatherLoadedDate: String? = null
 
@@ -303,6 +307,30 @@ class HomeViewModel(
 
         refreshDeepSeek()
         refreshTodayTasks()
+    }
+
+    /**
+     * Pull-to-refresh entry point: refreshes ALL home widget states.
+     * Weather + DeepSeek + TickTick are network-backed and need an explicit refresh;
+     * local DB widgets (heatmap, logs, countdown, habits, notebooks, review, pomodoro)
+     * update automatically through their reactive flows.
+     */
+    fun refreshAllHome() {
+        if (_isRefreshing.value) return
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                coroutineScope {
+                    launch { runCatching { weatherRepository.refresh() } }
+                    launch { runCatching { deepSeekRepository.refresh() } }
+                    if (tickTickRepository.isConfigured) {
+                        launch { runCatching { tickTickRepository.refresh() } }
+                    }
+                }
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     private var cachedHeatmapHash = 0

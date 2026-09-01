@@ -191,7 +191,7 @@ fun ReviewNoteEditScreen(
                 }
 
                 // Content text field
-                OutlinedTextField(
+                TextField(
                     value = uiState.content,
                     onValueChange = { viewModel.updateContent(it) },
                     label = { Text("Markdown 内容") },

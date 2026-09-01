@@ -38,7 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -154,7 +154,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.deepSeekKey,
                         onValueChange = viewModel::updateDeepSeekKey,
                         label = { Text("DeepSeek API Key") },
@@ -165,7 +165,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.deepSeekBaseUrl,
                         onValueChange = viewModel::updateDeepSeekBaseUrl,
                         label = { Text("DeepSeek API 地址") },
@@ -175,7 +175,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.qweatherKey,
                         onValueChange = viewModel::updateQWeatherKey,
                         label = { Text("和风天气 API Key") },
@@ -343,7 +343,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.webDavUrl,
                         onValueChange = viewModel::updateWebDavUrl,
                         label = { Text("WebDAV 地址") },
@@ -353,7 +353,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.username,
                         onValueChange = viewModel::updateUsername,
                         label = { Text("坚果云邮箱") },
@@ -362,7 +362,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.password,
                         onValueChange = viewModel::updatePassword,
                         label = { Text("应用密码") },
@@ -597,7 +597,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelLarge
                     )
                     Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.tickTickManualToken,
                         onValueChange = viewModel::updateTickTickManualToken,
                         label = { Text("粘贴 Cookie 或 Token（可含 t=...）") },
@@ -1042,7 +1042,7 @@ private fun PromptEditField(
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(4.dp))
-        OutlinedTextField(
+        TextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),

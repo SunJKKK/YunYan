@@ -52,6 +52,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -107,6 +108,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showAddTodoDialog by remember { mutableStateOf(false) }
 
     // ── Stagger entrance: release one item every 60ms on cold start ──
@@ -143,6 +145,11 @@ fun HomeScreen(
         when {
             uiState.isLoading -> LoadingIndicator()
             else -> {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refreshAllHome() },
+                    modifier = Modifier.fillMaxSize()
+                ) {
                 val modules = uiState.enabledModules
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(2),
@@ -384,6 +391,7 @@ fun HomeScreen(
                         } // Column
                         } // if visible
                     } // items
+                }
             }
         }
 
@@ -932,7 +940,7 @@ private fun AddTodoTaskDialog(
         title = { Text("新建任务") },
         text = {
             Column {
-                androidx.compose.material3.OutlinedTextField(
+                androidx.compose.material3.TextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("任务标题") },

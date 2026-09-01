@@ -31,7 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -138,7 +138,7 @@ fun NotebookEditScreen(
             }
 
             // Name field
-            OutlinedTextField(
+            TextField(
                 value = uiState.name,
                 onValueChange = viewModel::updateName,
                 label = { Text("笔记本名称 *") },

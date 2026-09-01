@@ -41,7 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -247,7 +247,7 @@ fun LogEditScreen(
                 }
 
                 // Title (required)
-                OutlinedTextField(
+                TextField(
                     value = uiState.title,
                     onValueChange = viewModel::updateTitle,
                     label = { Text("标题 *") },
@@ -262,7 +262,7 @@ fun LogEditScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Subject (optional)
-                OutlinedTextField(
+                TextField(
                     value = uiState.subject,
                     onValueChange = viewModel::updateSubject,
                     label = { Text("科目") },
@@ -274,7 +274,7 @@ fun LogEditScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Description (optional)
-                OutlinedTextField(
+                TextField(
                     value = uiState.description,
                     onValueChange = viewModel::updateDescription,
                     label = { Text("描述（可选）") },
@@ -287,7 +287,7 @@ fun LogEditScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Time spent (optional)
-                OutlinedTextField(
+                TextField(
                     value = uiState.timeSpent,
                     onValueChange = viewModel::updateTimeSpent,
                     label = { Text("花费时间 (分钟)") },

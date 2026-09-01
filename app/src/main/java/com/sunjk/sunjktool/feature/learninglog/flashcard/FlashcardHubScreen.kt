@@ -21,7 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -92,7 +92,7 @@ fun FlashcardHubScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.customStyle.ifBlank { selectedStyle },
                         onValueChange = { viewModel.updateCustomStyle(it) },
                         label = { Text("自定义风格") },
@@ -117,7 +117,7 @@ fun FlashcardHubScreen(
                     }
                     if (uiState.useCustomCount) {
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
+                        TextField(
                             value = uiState.customCardCount,
                             onValueChange = { viewModel.updateCustomCardCount(it.filter { c -> c.isDigit() }) },
                             label = { Text("数量") },

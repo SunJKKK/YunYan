@@ -91,7 +91,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -119,6 +119,8 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import com.sunjk.sunjktool.ui.components.MarkdownRenderer
+import com.sunjk.sunjktool.ui.components.MarkdownRenderBlock
+import com.sunjk.sunjktool.ui.components.splitMarkdownBlocks
 import com.sunjk.sunjktool.ui.components.SelfCheckRenderer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -811,7 +813,7 @@ private fun SummaryTab(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                if (uiState.isEditingSummary) OutlinedTextField(uiState.summaryText, { viewModel.updateSummaryText(it) }, Modifier.fillMaxWidth(), minLines = 4)
+                if (uiState.isEditingSummary) TextField(uiState.summaryText, { viewModel.updateSummaryText(it) }, Modifier.fillMaxWidth(), minLines = 4)
                 else MarkdownRenderer(summary)
 
                 // Regenerate footer
@@ -868,6 +870,7 @@ private fun MobileSectionedSummary(
     onNavigateToQuestionLinks: (logId: Long, headingId: String) -> Unit
 ) {
     val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
+    val sectionBlocks = remember(sections) { sections.map { it to splitMarkdownBlocks(it.body) } }
     val listState = rememberLazyListState()
     var showOverwriteDialog by remember { mutableStateOf(false) }
     var showRegenerateConfirmDialog by remember { mutableStateOf(false) }
@@ -898,8 +901,14 @@ private fun MobileSectionedSummary(
     // 初始定位：从题集解析跳转过来时滚动到对应章节（+1：标题栏占第 0 项）
     LaunchedEffect(initialHeading, sections) {
         val target = initialHeading ?: return@LaunchedEffect
-        val idx = sections.indexOfFirst { it.heading?.headingId == target }
-        if (idx >= 0) listState.scrollToItem(idx + 1)
+        var itemIndex = 1 // summary header
+        for (section in sections) {
+            if (section.heading?.headingId == target) {
+                listState.scrollToItem(itemIndex)
+                return@LaunchedEffect
+            }
+            itemIndex += (if (section.heading != null) 1 else 0) + splitMarkdownBlocks(section.body).size
+        }
     }
 
     LazyColumn(
@@ -926,13 +935,12 @@ private fun MobileSectionedSummary(
             }
             Spacer(Modifier.height(6.dp))
         }
-        sections.forEach { section ->
+        sectionBlocks.forEach { (section, blocks) ->
             val heading = section.heading
-            val key = heading?.headingId ?: "preamble"
-            item(key = key) {
-                // 跳转定位的目标章节：整个所属正文（标题 + 全部正文）以 M3 色矩形高亮闪烁一次
-                HighlightSection(highlighted = heading?.headingId == initialHeading) {
-                    if (heading != null) {
+            val sectionKey = heading?.headingId ?: "preamble"
+            if (heading != null) {
+                item(key = "$sectionKey-heading") {
+                    HighlightSection(highlighted = heading.headingId == initialHeading) {
                         val entryId = uiState.entry?.id ?: 0L
                         SectionHeading(
                             heading,
@@ -940,8 +948,12 @@ private fun MobileSectionedSummary(
                             { hid -> if (entryId > 0L) onNavigateToQuestionLinks(entryId, hid) }
                         )
                     }
-                    if (section.body.isNotBlank()) {
-                        MarkdownRenderer(section.body)
+                }
+            }
+            blocks.forEach { block ->
+                item(key = "$sectionKey-${block.key}") {
+                    HighlightSection(highlighted = heading?.headingId == initialHeading) {
+                        MarkdownRenderer(block.content)
                     }
                 }
             }
@@ -984,10 +996,18 @@ private fun SummaryDualPane(
 
     var currentHeadingId by remember { mutableStateOf<String?>(null) }
 
+    val items = remember(sections) { buildSummaryLazyItems(sections) }
+    val headingItemIndex = remember(items) {
+        items.mapIndexedNotNull { index, item ->
+            item.section.heading?.headingId?.let { headingId -> headingId to index }
+        }.toMap()
+    }
+    val sectionAtItem = remember(items) { items.map { it.section } }
+
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }
-            .collect { idx ->
-                currentHeadingId = sections.getOrNull(idx)?.heading?.headingId
+            .collect { index ->
+                currentHeadingId = sectionAtItem.getOrNull(index)?.heading?.headingId
             }
     }
 
@@ -998,8 +1018,8 @@ private fun SummaryDualPane(
                     items = outlineItems,
                     currentHeadingId = currentHeadingId,
                     onItemClick = { item ->
-                        val idx = sections.indexOfFirst { it.heading?.headingId == item.headingId }
-                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                        val idx = headingItemIndex[item.headingId]
+                        if (idx != null) scope.launch { listState.animateScrollToItem(idx) }
                     },
                     modifier = Modifier.width(280.dp)
                 )
@@ -1017,12 +1037,29 @@ private fun SummaryDualPane(
                     items = outlineItems,
                     currentHeadingId = currentHeadingId,
                     onItemClick = { item ->
-                        val idx = sections.indexOfFirst { it.heading?.headingId == item.headingId }
-                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                        val idx = headingItemIndex[item.headingId]
+                        if (idx != null) scope.launch { listState.animateScrollToItem(idx) }
                     },
                     modifier = Modifier.width(280.dp)
                 )
             }
+        }
+    }
+}
+
+private data class SummaryLazyItem(
+    val key: String,
+    val section: MarkdownSection,
+    val isHeading: Boolean,
+    val block: MarkdownRenderBlock? = null
+)
+
+private fun buildSummaryLazyItems(sections: List<MarkdownSection>): List<SummaryLazyItem> = buildList {
+    sections.forEach { section ->
+        val sectionKey = section.heading?.headingId ?: "preamble"
+        section.heading?.let { add(SummaryLazyItem("$sectionKey-heading", section, true)) }
+        splitMarkdownBlocks(section.body).forEach { block ->
+            add(SummaryLazyItem("$sectionKey-${block.key}", section, false, block))
         }
     }
 }
@@ -1036,10 +1073,11 @@ private fun SectionedSummary(
     onReferenceClick: ((String) -> Unit)? = null,
     initialHeading: String? = null
 ) {
-    // 初始定位：从题集解析跳转过来时滚动到对应章节
-    LaunchedEffect(initialHeading, sections) {
+    val items = remember(sections) { buildSummaryLazyItems(sections) }
+    // 初始定位：从题集解析跳转到目标章节的标题 item
+    LaunchedEffect(initialHeading, items) {
         val target = initialHeading ?: return@LaunchedEffect
-        val idx = sections.indexOfFirst { it.heading?.headingId == target }
+        val idx = items.indexOfFirst { it.isHeading && it.section.heading?.headingId == target }
         if (idx >= 0) listState.scrollToItem(idx)
     }
 
@@ -1048,21 +1086,19 @@ private fun SectionedSummary(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp)
     ) {
-        sections.forEach { section ->
+        items.forEach { lazyItem ->
+            val section = lazyItem.section
             val heading = section.heading
-            val key = heading?.headingId ?: "preamble"
-            item(key = key) {
-                // 跳转定位的目标章节：整个所属正文（标题 + 全部正文）以 M3 色矩形高亮闪烁一次
+            item(key = lazyItem.key) {
                 HighlightSection(highlighted = heading?.headingId == initialHeading) {
-                    if (heading != null) {
+                    if (lazyItem.isHeading && heading != null) {
                         SectionHeading(
                             heading,
                             referenceCounts[heading.headingId] ?: 0,
                             onReferenceClick
                         )
-                    }
-                    if (section.body.isNotBlank()) {
-                        MarkdownRenderer(section.body)
+                    } else {
+                        lazyItem.block?.let { MarkdownRenderer(it.content) }
                     }
                 }
             }

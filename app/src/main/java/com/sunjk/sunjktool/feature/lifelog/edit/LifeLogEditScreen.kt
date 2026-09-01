@@ -40,7 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -186,7 +186,7 @@ fun LifeLogEditScreen(
             }
 
             // Content (required)
-            OutlinedTextField(
+            TextField(
                 value = uiState.content,
                 onValueChange = viewModel::updateContent,
                 label = { Text("内容 *") },

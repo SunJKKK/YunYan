@@ -19,7 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -124,7 +124,7 @@ fun CountdownEditScreen(
                         .padding(16.dp)
                 ) {
                     // Title
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.title,
                         onValueChange = { viewModel.updateTitle(it) },
                         label = { Text("标题") },
@@ -189,7 +189,7 @@ fun CountdownEditScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Note
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.note,
                         onValueChange = { viewModel.updateNote(it) },
                         label = { Text("备注（可选）") },

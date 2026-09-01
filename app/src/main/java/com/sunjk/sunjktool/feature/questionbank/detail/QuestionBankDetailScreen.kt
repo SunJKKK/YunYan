@@ -66,7 +66,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -304,7 +304,7 @@ fun QuestionBankDetailScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    OutlinedTextField(
+                                    TextField(
                                         value = uiState.editedSplitContent[item.index] ?: item.content,
                                         onValueChange = { viewModel.updateSplitContent(item.index, it) },
                                         modifier = Modifier.fillMaxWidth(),
@@ -318,7 +318,7 @@ fun QuestionBankDetailScreen(
                             }
                         }
                         // Style hint input
-                        OutlinedTextField(
+                        TextField(
                             value = uiState.analysisStyleHint,
                             onValueChange = viewModel::updateAnalysisStyleHint,
                             label = { Text("解析风格偏好（可选）") },
@@ -360,7 +360,7 @@ fun QuestionBankDetailScreen(
                         }
                     } else {
                         // Input form
-                        OutlinedTextField(
+                        TextField(
                             value = uiState.newQuestionContent,
                             onValueChange = viewModel::updateNewQuestionContent,
                             label = { Text("题目内容") },

@@ -65,7 +65,7 @@ fun HabitEditScreen(
                 .padding(16.dp)
         ) {
             // Name
-            OutlinedTextField(
+            TextField(
                 value = uiState.name,
                 onValueChange = { viewModel.updateName(it) },
                 label = { Text("习惯名称") },
@@ -78,7 +78,7 @@ fun HabitEditScreen(
             Spacer(Modifier.height(16.dp))
 
             // Description
-            OutlinedTextField(
+            TextField(
                 value = uiState.description,
                 onValueChange = { viewModel.updateDescription(it) },
                 label = { Text("描述（可选）") },

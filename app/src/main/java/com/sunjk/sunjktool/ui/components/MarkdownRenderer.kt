@@ -21,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
@@ -52,6 +51,71 @@ internal data class MarkdownTable(
 )
 
 private val tableDelimiterCell = Regex("^:?-{3,}:?$")
+
+internal data class MarkdownRenderBlock(val content: String, val key: String)
+
+/** Split completed Markdown into lazy-renderable blocks without breaking tables/code/math. */
+internal fun splitMarkdownBlocks(markdown: String): List<MarkdownRenderBlock> {
+    if (markdown.isBlank()) return emptyList()
+    val lines = markdown.replace("\r\n", "\n").split('\n')
+    val blocks = mutableListOf<MarkdownRenderBlock>()
+    val current = mutableListOf<String>()
+    var fenced = false
+    var displayMath = false
+    var inTable = false
+    var blockIndex = 0
+
+    fun flush() {
+        while (current.lastOrNull()?.isNullOrBlank() == true) current.removeAt(current.lastIndex)
+        if (current.isNotEmpty()) {
+            val content = current.joinToString("\n")
+            blocks += MarkdownRenderBlock(content, "block-$blockIndex-${content.hashCode()}")
+            blockIndex++
+            current.clear()
+        }
+    }
+
+    lines.forEachIndexed { index, line ->
+        val trimmed = line.trim()
+        if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+            current += line
+            fenced = !fenced
+            return@forEachIndexed
+        }
+        if (fenced) {
+            current += line
+            return@forEachIndexed
+        }
+        if (trimmed == "$$") {
+            current += line
+            displayMath = !displayMath
+            if (!displayMath) flush()
+            return@forEachIndexed
+        }
+        if (displayMath) {
+            current += line
+            return@forEachIndexed
+        }
+        val rowCells = splitMarkdownTableRow(line)
+        val nextCells = if (index + 1 < lines.size) splitMarkdownTableRow(lines[index + 1]) else emptyList()
+        val startsTable = rowCells.size > 1 && nextCells.size == rowCells.size && nextCells.all { tableDelimiterCell.matches(it) }
+        if (startsTable) inTable = true
+        if (inTable) {
+            val isTableRow = rowCells.size > 1
+            if (isTableRow) {
+                current += line
+                return@forEachIndexed
+            }
+            flush()
+            inTable = false
+        }
+        if (trimmed.isBlank()) flush() else current += line
+    }
+    flush()
+    return blocks
+}
+
+
 
 internal fun splitMarkdownTableRow(line: String): List<String> {
     val source = line.trim()
@@ -661,11 +725,11 @@ fun MarkdownRenderer(text: String, onInternalLinkClick: ((String) -> Unit)? = nu
     val sanitized = remember(text) { stripDisallowedHtml(text) }
     val withTables = remember(sanitized) { convertHtmlTablesToMd(sanitized) }
     val withDivBlocks = remember(withTables) { convertHtmlDivsToBlocks(withTables) }
-    val lines = withDivBlocks.split("\n")
+    val lines = remember(withDivBlocks) { withDivBlocks.split('\n') }
     var inCodeBlock = false
     var inDisplayMath = false
-    val displayMathLines = remember { mutableStateListOf<String>() }
-    val tableRows = remember(text) { mutableStateListOf<String>() }
+    val displayMathLines = mutableListOf<String>()
+    val tableRows = mutableListOf<String>()
     // <div> 块缓冲：标记之间的行先收集，闭合后递归走完整 Markdown 渲染
     val divBlockLines = mutableListOf<String>()
     var divDepth = 0

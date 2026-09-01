@@ -28,7 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -95,7 +95,7 @@ fun SyncSettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.webDavUrl,
                         onValueChange = viewModel::updateWebDavUrl,
                         label = { Text("WebDAV 地址") },
@@ -106,7 +106,7 @@ fun SyncSettingsScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.username,
                         onValueChange = viewModel::updateUsername,
                         label = { Text("坚果云邮箱") },
@@ -116,7 +116,7 @@ fun SyncSettingsScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    OutlinedTextField(
+                    TextField(
                         value = uiState.password,
                         onValueChange = viewModel::updatePassword,
                         label = { Text("应用密码") },
