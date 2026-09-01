@@ -5,6 +5,7 @@ package com.sunjk.sunjktool.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,13 +34,113 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
+internal enum class TableColumnAlignment { LEFT, CENTER, RIGHT }
+
+internal data class MarkdownTable(
+    val header: List<String>,
+    val rows: List<List<String>>,
+    val alignments: List<TableColumnAlignment>
+)
+
+private val tableDelimiterCell = Regex("^:?-{3,}:?$")
+
+internal fun splitMarkdownTableRow(line: String): List<String> {
+    val source = line.trim()
+    val start = if (source.startsWith("|")) 1 else 0
+    val end = if (source.endsWith("|") && source.length > start) source.length - 1 else source.length
+    val cells = mutableListOf<String>()
+    val cell = StringBuilder()
+    var escaped = false
+    for (index in start until end) {
+        val char = source[index]
+        if (escaped) {
+            cell.append(char)
+            escaped = false
+        } else if (char == '\\') {
+            escaped = true
+        } else if (char == '|') {
+            cells += cell.toString().trim()
+            cell.clear()
+        } else {
+            cell.append(char)
+        }
+    }
+    if (escaped) cell.append('\\')
+    cells += cell.toString().trim()
+    return cells
+}
+
+internal fun parseMarkdownTable(headerLine: String, delimiterLine: String, bodyLines: List<String>): MarkdownTable? {
+    val header = splitMarkdownTableRow(headerLine)
+    val delimiter = splitMarkdownTableRow(delimiterLine)
+    if (header.isEmpty() || delimiter.size != header.size || delimiter.any { !tableDelimiterCell.matches(it) }) return null
+    val alignments = delimiter.map {
+        when {
+            it.startsWith(":") && it.endsWith(":") -> TableColumnAlignment.CENTER
+            it.startsWith(":") -> TableColumnAlignment.LEFT
+            it.endsWith(":") -> TableColumnAlignment.RIGHT
+            else -> TableColumnAlignment.LEFT
+        }
+    }
+    val rows = bodyLines.map { line ->
+        val parsed = splitMarkdownTableRow(line).toMutableList()
+        if (parsed.size > header.size) {
+            parsed[header.lastIndex] = parsed.drop(header.size - 1).joinToString(" | ")
+            while (parsed.size > header.size) parsed.removeAt(parsed.lastIndex)
+        }
+        parsed + List(header.size - parsed.size) { "" }
+    }
+    return MarkdownTable(header, rows, alignments)
+}
+
+/** Returns widths whose sum is exactly available when the table overflows. */
+internal fun solveTableColumnWidths(
+    idealWidths: List<Float>,
+    available: Float,
+    minimumWidths: List<Float>
+): List<Float> {
+    if (idealWidths.isEmpty()) return emptyList()
+    require(idealWidths.size == minimumWidths.size)
+    val total = idealWidths.sum()
+    if (total <= available) return idealWidths
+
+    val floors = minimumWidths.map { it.coerceAtLeast(0f) }
+    val floorTotal = floors.sum()
+    if (floorTotal >= available) {
+        // Extremely narrow parent: preserve proportions of the minimums so the
+        // solver still returns an exact total instead of overflowing the row.
+        val scale = available / floorTotal.coerceAtLeast(1f)
+        return floors.map { it * scale }
+    }
+
+    val result = floors.toMutableList()
+    var remaining = available - floorTotal
+    val expandable = idealWidths.mapIndexed { index, ideal ->
+        (ideal - floors[index]).coerceAtLeast(0f)
+    }
+    val expandableTotal = expandable.sum()
+    if (expandableTotal > 0f) {
+        expandable.forEachIndexed { index, weight ->
+            result[index] += remaining * weight / expandableTotal
+        }
+    } else {
+        val share = remaining / result.size
+        result.indices.forEach { result[it] += share }
+    }
+    return result
+}
+
+internal fun solveTableColumnWidths(idealWidths: List<Float>, available: Float, minimum: Float = 36f): List<Float> =
+    solveTableColumnWidths(idealWidths, available, List(idealWidths.size) { minimum })
 /**
  * Three highlight colours used in AI summaries (Material 200-level, heavier
  * than the old 50-level palette — dark text remains legible on all three in
@@ -453,13 +555,23 @@ internal fun buildInlineAnnotatedString(
                 }
                 remaining = remaining.substring(end + 1)
             }
-            // URL link: [text](url)
+            // URL link: [text](url) —— sunjktool:// 为内部链接，渲染为可点击的链接样式（pushStringAnnotation + ClickableText）
             remaining.startsWith("[") -> {
                 val match = url.find(remaining)
                 if (match != null) {
                     if (match.range.first > 0) append(remaining.substring(0, match.range.first))
-                    withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                        append(buildInlineAnnotatedString(match.groupValues[1], linkColor, codeBgColor, blankRevealedSet, blankColor, blankIndexCounter, blankRanges))
+                    val label = match.groupValues[1]
+                    val rawUrl = match.groupValues[2]
+                    if (rawUrl.startsWith("sunjktool://")) {
+                        pushStringAnnotation("internal_link", rawUrl)
+                        // label 已含「⤴」前缀（由 SummaryLinkHelper 生成），此处直接渲染 label，避免重复
+                        withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline, fontWeight = FontWeight.Medium)) {
+                            append(buildInlineAnnotatedString(label, linkColor, codeBgColor, blankRevealedSet, blankColor, blankIndexCounter, blankRanges))
+                        }
+                    } else {
+                        withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                            append(buildInlineAnnotatedString(label, linkColor, codeBgColor, blankRevealedSet, blankColor, blankIndexCounter, blankRanges))
+                        }
                     }
                     remaining = remaining.substring(match.range.last + 1)
                 } else { append(remaining); break }
@@ -481,8 +593,37 @@ internal fun buildInlineAnnotatedString(
     }
 }
 
-// ── HTML <table> → Markdown table converter ───────────────────────────────
+// ── HTML <div> → block marker converter ──────────────────────────────────
 
+/**
+ * Internal block markers produced by [convertHtmlDivsToBlocks].
+ * `:::div-center` / `:::div-right` / `:::div-left` open a div block (carrying
+ * the parsed `text-align`), `:::div-end` closes it. Content between markers is
+ * left untouched so nested markdown / tables / HTML still render normally.
+ */
+internal val divOpenMarkerRegex = Regex("""^:::div-(center|right|left)""")
+internal const val DIV_END_MARKER = ":::div-end"
+
+/**
+ * Convert HTML `<div ...>` / `</div>` tags into internal block markers so the
+ * block renderer can wrap div content with alignment. Only `text-align` is
+ * honoured (center/right); any other div degrades to a plain left-aligned
+ * block. Nested divs are supported: inner markers are kept in the buffered
+ * content and handled by the recursive render pass.
+ */
+internal fun convertHtmlDivsToBlocks(text: String): String {
+    val openRegex = Regex("""(?i)<div\b[^>]*>""")
+    val alignRegex = Regex("""(?i)\btext-align\s*:\s*(center|right)\b""")
+    // Close tags first — opens and closes never overlap, order is irrelevant.
+    var result = text.replace(Regex("""(?is)</div\s*>"""), DIV_END_MARKER)
+    result = result.replace(openRegex) { m ->
+        val align = alignRegex.find(m.value)?.groupValues?.get(1)?.lowercase()
+        if (align == "center" || align == "right") ":::div-$align" else ":::div-left"
+    }
+    return result
+}
+
+// ── HTML <table> → Markdown table converter ───────────────────────────────
 /** Convert `<table>` HTML blocks to Markdown table format for downstream rendering. */
 internal fun convertHtmlTablesToMd(text: String): String {
     val tableRegex = Regex("""(?is)<table\b[^>]*>(.*?)</table\s*>""")
@@ -500,12 +641,13 @@ internal fun convertHtmlTablesToMd(text: String): String {
         }
         if (rows.size < 2) return@replace match.value // need at least header + one row
         val sb = StringBuilder()
-        rows.forEachIndexed { ri, cells ->
-            sb.append("| ").append(cells.joinToString(" | ")).append(" |\n")
-            if (ri == 0) {
-                sb.append("| ").append(cells.joinToString(" | ") { "---" }).append(" |\n")
+            rows.forEachIndexed { ri, cells ->
+                val escapedCells = cells.map { it.replace("\\", "\\\\").replace("|", "\\|") }
+                sb.append("| ").append(escapedCells.joinToString(" | ")).append(" |\n")
+                if (ri == 0) {
+                    sb.append("| ").append(cells.joinToString(" | ") { "---" }).append(" |\n")
+                }
             }
-        }
         sb.toString()
     }
 }
@@ -513,20 +655,49 @@ internal fun convertHtmlTablesToMd(text: String): String {
 // ── Block-level renderers ───────────────────────────────────────────────
 
 @Composable
-fun MarkdownRenderer(text: String) {
+fun MarkdownRenderer(text: String, onInternalLinkClick: ((String) -> Unit)? = null) {
     val baseStyle = MaterialTheme.typography.bodyMedium
     val monoStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
     val sanitized = remember(text) { stripDisallowedHtml(text) }
     val withTables = remember(sanitized) { convertHtmlTablesToMd(sanitized) }
-    val lines = withTables.split("\n")
+    val withDivBlocks = remember(withTables) { convertHtmlDivsToBlocks(withTables) }
+    val lines = withDivBlocks.split("\n")
     var inCodeBlock = false
     var inDisplayMath = false
     val displayMathLines = remember { mutableStateListOf<String>() }
     val tableRows = remember(text) { mutableStateListOf<String>() }
+    // <div> 块缓冲：标记之间的行先收集，闭合后递归走完整 Markdown 渲染
+    val divBlockLines = mutableListOf<String>()
+    var divDepth = 0
+    var divAlign: String? = null
     Column {
         lines.forEachIndexed { idx, line ->
-            if (tableRows.isNotEmpty() && (!line.trimStart().startsWith("|") || !line.trimEnd().endsWith("|"))) {
-                renderMdTable(tableRows.toList(), baseStyle)
+            // 正在缓冲 <div> 块内容（嵌套标记留在缓冲里交给递归渲染处理）
+            if (divDepth > 0) {
+                val trimmed = line.trim()
+                val openMatch = divOpenMarkerRegex.find(trimmed)
+                when {
+                    openMatch != null -> { divDepth++; divBlockLines.add(line) }
+                    trimmed == DIV_END_MARKER -> {
+                        divDepth--
+                        if (divDepth > 0) {
+                            divBlockLines.add(line)
+                        } else {
+                            renderDivBlock(divBlockLines.joinToString("\n"), divAlign, onInternalLinkClick)
+                            divBlockLines.clear(); divAlign = null
+                        }
+                    }
+                    else -> divBlockLines.add(line)
+                }
+                if (idx == lines.lastIndex && divDepth > 0) {
+                    // 未闭合的 <div>：按已有内容兜底渲染
+                    renderDivBlock(divBlockLines.joinToString("\n"), divAlign, onInternalLinkClick)
+                    divBlockLines.clear(); divDepth = 0; divAlign = null
+                }
+                return@forEachIndexed
+            }
+            if (tableRows.isNotEmpty() && splitMarkdownTableRow(line).size < 2) {
+                renderMdTable(tableRows.toList(), baseStyle, onInternalLinkClick)
                 tableRows.clear()
             }
             when {
@@ -542,7 +713,7 @@ fun MarkdownRenderer(text: String) {
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        MarkdownInline(formula, monoStyle.copy(color = Color(0xFF1565C0), fontStyle = FontStyle.Italic))
+                        MarkdownInline(formula, monoStyle.copy(color = Color(0xFF1565C0), fontStyle = FontStyle.Italic), internalLinkClick = onInternalLinkClick)
                     }
                     displayMathLines.clear()
                 }
@@ -550,18 +721,38 @@ fun MarkdownRenderer(text: String) {
                     displayMathLines.add(line)
                 }
                 line.startsWith("```") -> { inCodeBlock = !inCodeBlock; Spacer(Modifier.height(4.dp)) }
-                inCodeBlock -> MarkdownInline(line, monoStyle, Modifier.padding(start = 8.dp))
-                line.trimStart().startsWith("|") && line.trimEnd().endsWith("|") -> {
-                    tableRows.add(line)
-                    if (idx == lines.lastIndex) {
-                        renderMdTable(tableRows.toList(), baseStyle)
+                inCodeBlock -> MarkdownInline(line, monoStyle, Modifier.padding(start = 8.dp), internalLinkClick = onInternalLinkClick)
+                line.trimStart().startsWith("|") || line.contains("|") -> {
+                    val isTableRow = splitMarkdownTableRow(line).size > 1
+                    val nextIsDelimiter = idx + 1 < lines.size && splitMarkdownTableRow(lines[idx + 1]).all { tableDelimiterCell.matches(it) }
+                    if (tableRows.isEmpty()) {
+                        if (isTableRow && nextIsDelimiter) tableRows.add(line) else MarkdownInline(line, baseStyle, internalLinkClick = onInternalLinkClick)
+                    } else if (isTableRow) {
+                        tableRows.add(line)
+                        if (idx == lines.lastIndex) {
+                            renderMdTable(tableRows.toList(), baseStyle, onInternalLinkClick)
+                            tableRows.clear()
+                        }
+                    } else {
+                        renderMdTable(tableRows.toList(), baseStyle, onInternalLinkClick)
                         tableRows.clear()
+                        MarkdownInline(line, baseStyle, internalLinkClick = onInternalLinkClick)
                     }
                 }
-                line.startsWith("#### ") -> MarkdownInline(line.removePrefix("#### "), MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), Modifier.padding(top = 4.dp, bottom = 2.dp))
-                line.startsWith("### ") -> MarkdownInline(line.removePrefix("### "), MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), Modifier.padding(top = 8.dp, bottom = 2.dp))
-                line.startsWith("## ") -> MarkdownInline(line.removePrefix("## "), MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), Modifier.padding(top = 10.dp, bottom = 2.dp))
-                line.startsWith("# ") -> MarkdownInline(line.removePrefix("# "), MaterialTheme.typography.titleLarge.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize * 1.15f, fontWeight = FontWeight.Bold), Modifier.padding(top = 10.dp, bottom = 4.dp))
+                divOpenMarkerRegex.find(line.trim()) != null -> {
+                    val match = divOpenMarkerRegex.find(line.trim())!!
+                    divDepth = 1
+                    divAlign = match.groupValues[1]
+                    divBlockLines.clear()
+                    val trailing = line.trim().substring(match.range.last + 1)
+                    if (trailing.isNotBlank()) divBlockLines.add(trailing.trim())
+                }
+                // 孤立的 </div>（无对应开始标记）：跳过，避免渲染出原始标记文本
+                line.trim() == DIV_END_MARKER -> Unit
+                line.startsWith("#### ") -> MarkdownInline(line.removePrefix("#### "), MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), Modifier.padding(top = 4.dp, bottom = 2.dp), internalLinkClick = onInternalLinkClick)
+                line.startsWith("### ") -> MarkdownInline(line.removePrefix("### "), MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), Modifier.padding(top = 8.dp, bottom = 2.dp), internalLinkClick = onInternalLinkClick)
+                line.startsWith("## ") -> MarkdownInline(line.removePrefix("## "), MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), Modifier.padding(top = 10.dp, bottom = 2.dp), internalLinkClick = onInternalLinkClick)
+                line.startsWith("# ") -> MarkdownInline(line.removePrefix("# "), MaterialTheme.typography.titleLarge.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize * 1.15f, fontWeight = FontWeight.Bold), Modifier.padding(top = 10.dp, bottom = 4.dp), internalLinkClick = onInternalLinkClick)
                 line.startsWith("> ") -> {
                     val content = line.substringAfter("> ")
                     Row(modifier = Modifier
@@ -571,7 +762,7 @@ fun MarkdownRenderer(text: String) {
                     ) {
                         Box(Modifier.width(3.dp).height(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
                         Spacer(Modifier.width(8.dp))
-                        MarkdownInline(content, baseStyle.copy(fontStyle = FontStyle.Italic), Modifier.weight(1f))
+                        MarkdownInline(content, baseStyle.copy(fontStyle = FontStyle.Italic), Modifier.weight(1f), internalLinkClick = onInternalLinkClick)
                     }
                 }
                 // Unordered list at any nesting level
@@ -583,14 +774,14 @@ fun MarkdownRenderer(text: String) {
                     val content = line.trimStart().removePrefix("- ").removePrefix("* ")
                     Row(modifier = Modifier.padding(start = (8 + level * 16).dp, top = 2.dp)) {
                         Text(bullet, style = bulletStyle, modifier = Modifier.alignByBaseline())
-                        MarkdownInline(content, baseStyle, Modifier.alignByBaseline())
+                        MarkdownInline(content, baseStyle, Modifier.alignByBaseline(), internalLinkClick = onInternalLinkClick)
                     }
                 }
                 line.matches(Regex("^\\d+\\..*")) -> {
                     val content = line.substringAfter(". ")
                     Row(modifier = Modifier.padding(start = 8.dp, top = 2.dp)) {
                         Text("${line.substringBefore(".")}. ", style = baseStyle)
-                        MarkdownInline(content, baseStyle)
+                        MarkdownInline(content, baseStyle, internalLinkClick = onInternalLinkClick)
                     }
                 }
                 line.matches(Regex("^-{3,}$")) -> {
@@ -599,91 +790,178 @@ fun MarkdownRenderer(text: String) {
                     Spacer(Modifier.height(4.dp))
                 }
                 line.isBlank() -> Spacer(Modifier.height(4.dp))
-                else -> MarkdownInline(line, baseStyle)
+                else -> MarkdownInline(line, baseStyle, internalLinkClick = onInternalLinkClick)
             }
         }
     }
 }
 
+/**
+ * Render the buffered content of an HTML `<div>` block. The content goes
+ * through the full [MarkdownRenderer] pipeline recursively (tables, math,
+ * inline HTML all work), wrapped in a full-width Box honouring `text-align`.
+ */
 @Composable
-private fun renderMdTable(rows: List<String>, style: androidx.compose.ui.text.TextStyle) {
-    if (rows.size < 2) return
-    val parsed = rows.map { row ->
-        row.trim().removeSurrounding("|").split("|").map { it.trim() }
+private fun renderDivBlock(content: String, align: String?, onInternalLinkClick: ((String) -> Unit)?) {
+    if (content.isBlank()) return
+    val alignment = when (align) {
+        "center" -> Alignment.Center
+        "right" -> Alignment.CenterEnd
+        else -> Alignment.CenterStart
     }
-    val headerRow = parsed.first()
-    val dataRows = parsed.drop(1).filter { cells ->
-        !cells.all { it.matches(Regex("^[-: ]+$")) }
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        contentAlignment = alignment
+    ) {
+        MarkdownRenderer(content, onInternalLinkClick)
     }
-    if (headerRow.isEmpty()) return
+}
 
-    // 按每列内容最大宽度分配列宽权重：短列窄、长列宽，
-    // 但设上限防止某一列过长时把其他列挤扁（过长内容在占比内换行），设下限防空列塌缩。
+@Composable
+private fun renderMdTable(rows: List<String>, style: androidx.compose.ui.text.TextStyle, internalLinkClick: ((String) -> Unit)? = null) {
+    if (rows.size < 2) return
+    val table = parseMarkdownTable(rows[0], rows[1], rows.drop(2)) ?: return
+    val colCount = table.header.size
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val minWeightPx = with(density) { 28.dp.toPx() }
-    val maxWeightPx = with(density) { 180.dp.toPx() }
-    val weights = remember(parsed, style) {
-        FloatArray(headerRow.size) { col ->
-            var max = 0f
-            val allRows = listOf(headerRow to style.copy(fontWeight = FontWeight.Bold)) +
-                dataRows.map { it to style }
-            for ((row, cellStyle) in allRows) {
-                val cell = row.getOrNull(col) ?: continue
-                if (cell.isEmpty()) continue
-                val w = textMeasurer.measure(
-                    AnnotatedString(cell), cellStyle
-                ).size.width.toFloat()
-                if (w > max) max = w
-            }
-            max.coerceIn(minWeightPx, maxWeightPx)
-        }
-    }
+    val horizontalPaddingPx = with(density) { 16.dp.toPx() }
+    val dividerWidthPx = with(density) { 0.5.dp.toPx() }
+    val maxColumnPx = with(density) { 320.dp.toPx() }
 
-    val borderColor = MaterialTheme.colorScheme.outlineVariant
-    val dividerColor = borderColor.copy(alpha = 0.5f)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .border(1.dp, dividerColor, MaterialTheme.shapes.small)
-    ) {
-        // Header
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).background(dividerColor.copy(alpha = 0.35f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
-            headerRow.forEachIndexed { ci, cell ->
-                if (ci > 0) VerticalDivider(modifier = Modifier.fillMaxHeight().padding(vertical = 2.dp), thickness = 0.5.dp, color = dividerColor)
-                Box(
-                    modifier = Modifier.weight(weights[ci]).fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MarkdownInline(cell, style.copy(fontWeight = FontWeight.Bold))
+    BoxWithConstraints {
+        val availablePx = constraints.maxWidth.toFloat()
+        val measureStyle = style.copy(textAlign = TextAlign.Left)
+        val idealWidths = remember(table, style, availablePx) {
+            List(colCount) { column ->
+                val content = (listOf(table.header) + table.rows).map { it[column] }
+                val maxTextWidth = content.maxOf { value ->
+                    textMeasurer.measure(
+                        AnnotatedString(value),
+                        if (value == table.header.getOrNull(column)) measureStyle.copy(fontWeight = FontWeight.Bold) else measureStyle,
+                        constraints = Constraints(maxWidth = maxColumnPx.toInt())
+                    ).size.width.toFloat()
                 }
+                (maxTextWidth + horizontalPaddingPx).coerceAtLeast(horizontalPaddingPx + with(density) { 8.dp.toPx() })
             }
         }
-        // Data rows
-        dataRows.forEachIndexed { ri, cells ->
-            HorizontalDivider(thickness = 0.5.dp, color = dividerColor)
-            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                cells.take(headerRow.size).forEachIndexed { ci, cell ->
-                    if (ci > 0) VerticalDivider(modifier = Modifier.fillMaxHeight().padding(vertical = 2.dp), thickness = 0.5.dp, color = dividerColor)
-                    Box(
-                        modifier = Modifier.weight(weights.getOrElse(ci) { 1f }).fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        MarkdownInline(cell, style)
-                    }
-                }
+        val minimumWidths = remember(table, style) {
+            List(colCount) { column ->
+                val values = (listOf(table.header) + table.rows).map { it[column] }.filter { it.isNotEmpty() }
+                val minimumCharacterWidth = values
+                    .flatMap { it.toList() }
+                    .maxOfOrNull { character ->
+                        textMeasurer.measure(AnnotatedString(character.toString()), measureStyle).size.width.toFloat()
+                    } ?: with(density) { 8.dp.toPx() }
+                horizontalPaddingPx + minimumCharacterWidth
+            }
+        }
+        val dividerTotal = dividerWidthPx * (colCount - 1)
+        val cellAvailable = (availablePx - dividerTotal).coerceAtLeast(1f)
+        val widths = solveTableColumnWidths(idealWidths, cellAvailable, minimumWidths)
+        val tableWidth = widths.sum() + dividerTotal
+        val tableModifier = if (tableWidth >= availablePx - 0.5f) Modifier.fillMaxWidth()
+        else Modifier.width(with(density) { tableWidth.toDp() })
+        val borderColor = MaterialTheme.colorScheme.outlineVariant
+        val dividerColor = borderColor.copy(alpha = 0.55f)
+        val cellHeightPadding = 8.dp
+
+        Column(
+            modifier = tableModifier
+                .padding(vertical = 6.dp)
+                .border(1.dp, dividerColor, MaterialTheme.shapes.small)
+        ) {
+            TableRow(
+                cells = table.header,
+                widths = widths,
+                alignments = table.alignments,
+                style = style.copy(fontWeight = FontWeight.Bold),
+                horizontalPadding = horizontalPaddingPx,
+                verticalPadding = 6.dp,
+                background = dividerColor.copy(alpha = 0.3f),
+                dividerColor = dividerColor,
+                internalLinkClick = internalLinkClick
+            )
+            table.rows.forEach { row ->
+                HorizontalDivider(thickness = with(density) { dividerWidthPx.toDp() }, color = dividerColor)
+                TableRow(
+                    cells = row,
+                    widths = widths,
+                    alignments = table.alignments,
+                    style = style,
+                    horizontalPadding = horizontalPaddingPx,
+                    verticalPadding = cellHeightPadding,
+                    background = Color.Transparent,
+                    dividerColor = dividerColor,
+                    internalLinkClick = internalLinkClick
+                )
             }
         }
     }
 }
 
 @Composable
-fun MarkdownInline(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier) {
+private fun TableRow(
+    cells: List<String>,
+    widths: List<Float>,
+    alignments: List<TableColumnAlignment>,
+    style: androidx.compose.ui.text.TextStyle,
+    horizontalPadding: Float,
+    verticalPadding: androidx.compose.ui.unit.Dp,
+    background: Color,
+    dividerColor: Color,
+    internalLinkClick: ((String) -> Unit)?
+) {
+    val density = LocalDensity.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(background)
+    ) {
+        cells.forEachIndexed { index, cell ->
+            if (index > 0) VerticalDivider(thickness = 0.5.dp, color = dividerColor)
+            val alignment = when (alignments.getOrElse(index) { TableColumnAlignment.LEFT }) {
+                TableColumnAlignment.LEFT -> TextAlign.Left
+                TableColumnAlignment.CENTER -> TextAlign.Center
+                TableColumnAlignment.RIGHT -> TextAlign.Right
+            }
+            Box(
+                modifier = Modifier
+                    .width(with(density) { widths[index].toDp() })
+                    .fillMaxHeight()
+                    .padding(horizontal = with(density) { horizontalPadding.toDp() / 2 }, vertical = verticalPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                MarkdownInline(cell, style.copy(textAlign = alignment), internalLinkClick = internalLinkClick)
+            }
+        }
+    }
+}
+
+
+@Composable
+fun MarkdownInline(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+    internalLinkClick: ((String) -> Unit)? = null
+) {
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBgColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     val annotated = remember(text, linkColor, codeBgColor) {
         buildInlineAnnotatedString(text, linkColor, codeBgColor)
     }
-    Text(annotated, style = style, modifier = modifier)
+    if (internalLinkClick != null) {
+        ClickableText(
+            text = annotated,
+            style = style,
+            modifier = modifier,
+            onClick = { offset ->
+                annotated.getStringAnnotations("internal_link", offset, offset)
+                    .firstOrNull()?.let { internalLinkClick(it.item) }
+            }
+        )
+    } else {
+        Text(annotated, style = style, modifier = modifier)
+    }
 }

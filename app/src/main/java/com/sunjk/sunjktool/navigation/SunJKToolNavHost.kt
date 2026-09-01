@@ -42,6 +42,7 @@ import com.sunjk.sunjktool.di.NotebookListVMF
 import com.sunjk.sunjktool.di.NotebookDetailVMF
 import com.sunjk.sunjktool.di.NotebookEditVMF
 import com.sunjk.sunjktool.di.QuestionBankListVMF
+import com.sunjk.sunjktool.di.QuestionLinkListVMF
 import com.sunjk.sunjktool.di.QuestionBankDetailVMF
 import com.sunjk.sunjktool.di.QuestionBankEditVMF
 import com.sunjk.sunjktool.di.SettingsVMF
@@ -85,6 +86,8 @@ import com.sunjk.sunjktool.feature.notebook.detail.NotebookDetailScreen
 import com.sunjk.sunjktool.feature.questionbank.list.QuestionBankListScreen
 import com.sunjk.sunjktool.feature.questionbank.edit.QuestionBankEditScreen
 import com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailScreen
+import com.sunjk.sunjktool.feature.questionbank.link.QuestionLinkListScreen
+import com.sunjk.sunjktool.feature.questionbank.link.QuestionLinkListViewModel
 import com.sunjk.sunjktool.feature.settings.SettingsScreen
 import com.sunjk.sunjktool.feature.sync.SyncSettingsScreen
 import com.sunjk.sunjktool.util.PomodoroManager
@@ -347,7 +350,8 @@ fun SunJKToolNavHost(
         composable(
             route = Screen.LogDetail.route,
             arguments = listOf(
-                navArgument("logId") { type = NavType.LongType }
+                navArgument("logId") { type = NavType.LongType },
+                navArgument("heading") { type = NavType.StringType; nullable = true; defaultValue = null }
             ),
             enterTransition = if (animEnabled) forwardEnter else null,
             exitTransition = if (animEnabled) forwardExit else null,
@@ -355,10 +359,11 @@ fun SunJKToolNavHost(
             popExitTransition = if (animEnabled) backExit else null
         ) { backStackEntry ->
             val logId = backStackEntry.arguments?.getLong("logId") ?: return@composable
+            val heading = backStackEntry.arguments?.getString("heading")
             LogDetailScreen(
                 viewModel = viewModel(
                     key = "log_detail_$logId",
-                    factory = LogDetailVMF(logRepository, reviewHelper, deepSeekApi, flashcardRepository, reviewNoteRepository, apiPreferences, logId)
+                    factory = LogDetailVMF(logRepository, reviewHelper, deepSeekApi, flashcardRepository, reviewNoteRepository, apiPreferences, logId, questionBankRepository)
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = {
@@ -376,8 +381,38 @@ fun SunJKToolNavHost(
                 onNavigateToReviewNoteDetail = { noteId ->
                     navController.navigate(Screen.ReviewNoteDetail.createRoute(logId, noteId))
                 },
+                onNavigateToQuestionLinks = { qLogId, headingId ->
+                    navController.navigate(Screen.QuestionLinkList.createRoute(qLogId, headingId))
+                },
+                initialHeading = heading,
                 animatedVisibilityScope = this,
                 sharedTransitionScope = sharedTransitionScope
+            )
+        }
+
+        // ===== 章节引用题目列表 (push) =====
+        composable(
+            route = Screen.QuestionLinkList.route,
+            arguments = listOf(
+                navArgument("logId") { type = NavType.LongType },
+                navArgument("headingId") { type = NavType.StringType }
+            ),
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) { backStackEntry ->
+            val qLogId = backStackEntry.arguments?.getLong("logId") ?: return@composable
+            val headingId = backStackEntry.arguments?.getString("headingId") ?: return@composable
+            QuestionLinkListScreen(
+                viewModel = viewModel(
+                    key = "qlink_${qLogId}_$headingId",
+                    factory = QuestionLinkListVMF(questionBankRepository, qLogId, headingId)
+                ),
+                onNavigateBack = { navController.popBackStack() },
+                onQuestionClick = { categoryId, questionId ->
+                    navController.navigate(Screen.QuestionBankDetail.createRoute(categoryId, questionId))
+                }
             )
         }
 
@@ -825,17 +860,21 @@ fun SunJKToolNavHost(
         // ===== 题集详情 (push) =====
         composable(
             route = Screen.QuestionBankDetail.route,
-            arguments = listOf(navArgument("categoryId") { type = NavType.LongType }),
+            arguments = listOf(
+                navArgument("categoryId") { type = NavType.LongType },
+                navArgument("questionId") { type = NavType.LongType; defaultValue = -1L }
+            ),
             enterTransition = if (animEnabled) forwardEnter else null,
             exitTransition = if (animEnabled) forwardExit else null,
             popEnterTransition = if (animEnabled) backEnter else null,
             popExitTransition = if (animEnabled) backExit else null
         ) { backStackEntry ->
             val categoryId = backStackEntry.arguments?.getLong("categoryId") ?: return@composable
+            val questionId = backStackEntry.arguments?.getLong("questionId")?.takeIf { it > 0 }
             QuestionBankDetailScreen(
                 viewModel = viewModel(
                     key = "qb_detail_$categoryId",
-                    factory = QuestionBankDetailVMF(questionBankRepository, deepSeekApi, logRepository, notebookRepository, apiPreferences, categoryId)
+                    factory = QuestionBankDetailVMF(questionBankRepository, deepSeekApi, logRepository, notebookRepository, apiPreferences, categoryId, initialQuestionId = questionId)
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSubCategory = { subId ->
@@ -851,6 +890,10 @@ fun SunJKToolNavHost(
                     navController.navigate(Screen.QuestionBankDetail.createRoute(breadcrumbId)) {
                         popUpTo(Screen.QuestionBankList.route)
                     }
+                },
+                initialQuestionId = questionId,
+                onNavigateToLogDetail = { logId, heading ->
+                    navController.navigate(Screen.LogDetail.createRoute(logId, heading))
                 }
             )
         }

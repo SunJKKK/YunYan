@@ -129,11 +129,12 @@ class LogDetailVMF(
     private val flashcardRepo: FlashcardRepository,
     private val reviewNoteRepo: ReviewNoteRepository,
     private val apiPreferences: ApiPreferences,
-    private val logId: Long
+    private val logId: Long,
+    private val questionBankRepo: QuestionBankRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        LogDetailViewModel(repo, reviewHelper, deepSeekApi, flashcardRepo, reviewNoteRepo, apiPreferences, logId) as T
+        LogDetailViewModel(repo, reviewHelper, deepSeekApi, flashcardRepo, reviewNoteRepo, apiPreferences, logId, questionBankRepo) as T
 }
 
 class CountdownListVMF(private val repo: CountdownRepository) : ViewModelProvider.Factory {
@@ -332,11 +333,22 @@ class QuestionBankDetailVMF(
     private val logRepo: LogRepository,
     private val notebookRepo: com.sunjk.sunjktool.domain.repository.NotebookRepository,
     private val apiPreferences: ApiPreferences,
-    private val categoryId: Long
+    private val categoryId: Long,
+    private val initialQuestionId: Long? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailViewModel(repo, deepSeekApi, logRepo, notebookRepo, apiPreferences, categoryId) as T
+        com.sunjk.sunjktool.feature.questionbank.detail.QuestionBankDetailViewModel(repo, deepSeekApi, logRepo, notebookRepo, apiPreferences, categoryId, initialQuestionId) as T
+}
+
+class QuestionLinkListVMF(
+    private val repo: QuestionBankRepository,
+    private val logId: Long,
+    private val headingId: String
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        com.sunjk.sunjktool.feature.questionbank.link.QuestionLinkListViewModel(repo, logId, headingId) as T
 }
 
 class QuestionBankEditVMF(

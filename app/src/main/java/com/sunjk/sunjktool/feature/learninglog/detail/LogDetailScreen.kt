@@ -13,6 +13,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.BasicText
@@ -103,6 +106,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -149,6 +153,8 @@ fun LogDetailScreen(
     onNavigateToFlashcardHub: () -> Unit = {},
     onNavigateToReviewNotes: () -> Unit = {},
     onNavigateToReviewNoteDetail: (Long) -> Unit = {},
+    initialHeading: String? = null,
+    onNavigateToQuestionLinks: (logId: Long, headingId: String) -> Unit = { _, _ -> },
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     modifier: Modifier = Modifier
@@ -327,7 +333,7 @@ fun LogDetailScreen(
                     // Pager
                     HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                         when (page) {
-                            0 -> SummaryTab(uiState, viewModel)
+                            0 -> SummaryTab(uiState, viewModel, initialHeading, onNavigateToQuestionLinks)
                             1 -> DescriptionTab(uiState, entry, { fullscreenImageIndex = it }, viewModel)
                             2 -> ReviewNotesTab(viewModel, onNavigateToReviewNotes, onNavigateToReviewNoteDetail, entry)
                             3 -> SelfCheckTab(uiState, viewModel)
@@ -589,10 +595,31 @@ private fun saveToGallery(context: Context, file: File) {
 }
 
 @Composable
-private fun SummaryTab(uiState: LogDetailUiState, viewModel: LogDetailViewModel) {
+private fun SummaryTab(
+    uiState: LogDetailUiState,
+    viewModel: LogDetailViewModel,
+    initialHeading: String? = null,
+    onNavigateToQuestionLinks: (logId: Long, headingId: String) -> Unit = { _, _ -> }
+) {
     val summary = uiState.summaryText.ifBlank { uiState.entry?.aiSummary ?: "" }
     val context = LocalContext.current
     var showOverwriteDialog by remember { mutableStateOf(false) }
+    var showRegenerateConfirmDialog by remember { mutableStateOf(false) }
+
+    // 引用失效确认：重新生成会破坏题集解析 → 本章节的跳转链接
+    if (showRegenerateConfirmDialog) {
+        val refCount = uiState.referenceCounts.values.sum()
+        ConfirmDialog(
+            title = "重新生成 AI 总结",
+            message = "当前总结被 $refCount 道题目的解析所引用。重新生成后，这些解析中的跳转链接将失效（降级跳转到总结顶部）。确定继续吗？",
+            confirmText = "继续生成",
+            onConfirm = {
+                showRegenerateConfirmDialog = false
+                viewModel.showSummaryModeDialog()
+            },
+            onDismiss = { showRegenerateConfirmDialog = false }
+        )
+    }
 
     // Overwrite confirmation dialog
     if (showOverwriteDialog) {
@@ -713,7 +740,22 @@ private fun SummaryTab(uiState: LogDetailUiState, viewModel: LogDetailViewModel)
         SummaryDualPane(
             summary = summary,
             outlineExpanded = uiState.summaryOutlineExpanded,
-            outlineOnLeft = uiState.summaryOutlineOnLeft
+            outlineOnLeft = uiState.summaryOutlineOnLeft,
+            initialHeading = initialHeading,
+            referenceCounts = uiState.referenceCounts,
+            onReferenceClick = { headingId -> uiState.entry?.id?.let { onNavigateToQuestionLinks(it, headingId) } }
+        )
+        return
+    }
+
+    // 手机端：有内容且非编辑/生成时，按章节分块渲染（支持初始定位 + 章节被引用入口）
+    if (!uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank()) {
+        MobileSectionedSummary(
+            summary = summary,
+            uiState = uiState,
+            viewModel = viewModel,
+            initialHeading = initialHeading,
+            onNavigateToQuestionLinks = onNavigateToQuestionLinks
         )
         return
     }
@@ -778,8 +820,11 @@ private fun SummaryTab(uiState: LogDetailUiState, viewModel: LogDetailViewModel)
                     OutlinedButton(
                         onClick = {
                             val hasExisting = !uiState.entry?.aiSummary.isNullOrBlank()
-                            if (hasExisting) showOverwriteDialog = true
-                            else viewModel.showSummaryModeDialog()
+                            if (hasExisting) {
+                                val refCount = uiState.referenceCounts.values.sum()
+                                if (refCount > 0) showRegenerateConfirmDialog = true
+                                else showOverwriteDialog = true
+                            } else viewModel.showSummaryModeDialog()
                         },
                         enabled = !uiState.isGeneratingFlashcards,
                         modifier = Modifier.fillMaxWidth()
@@ -815,10 +860,122 @@ private fun SummaryTab(uiState: LogDetailUiState, viewModel: LogDetailViewModel)
 }
 
 @Composable
+private fun MobileSectionedSummary(
+    summary: String,
+    uiState: LogDetailUiState,
+    viewModel: LogDetailViewModel,
+    initialHeading: String?,
+    onNavigateToQuestionLinks: (logId: Long, headingId: String) -> Unit
+) {
+    val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
+    val listState = rememberLazyListState()
+    var showOverwriteDialog by remember { mutableStateOf(false) }
+    var showRegenerateConfirmDialog by remember { mutableStateOf(false) }
+
+    if (showOverwriteDialog) {
+        ConfirmDialog(
+            title = "覆盖 AI 总结",
+            message = "已有 AI 总结，生成新的总结将覆盖现有内容。确定继续吗？",
+            confirmText = "覆盖",
+            onConfirm = { showOverwriteDialog = false; viewModel.showSummaryModeDialog() },
+            onDismiss = { showOverwriteDialog = false }
+        )
+    }
+    if (showRegenerateConfirmDialog) {
+        val refCount = uiState.referenceCounts.values.sum()
+        ConfirmDialog(
+            title = "重新生成 AI 总结",
+            message = "当前总结被 $refCount 道题目的解析所引用。重新生成后，这些解析中的跳转链接将失效（降级跳转到总结顶部）。确定继续吗？",
+            confirmText = "继续生成",
+            onConfirm = {
+                showRegenerateConfirmDialog = false
+                viewModel.showSummaryModeDialog()
+            },
+            onDismiss = { showRegenerateConfirmDialog = false }
+        )
+    }
+
+    // 初始定位：从题集解析跳转过来时滚动到对应章节（+1：标题栏占第 0 项）
+    LaunchedEffect(initialHeading, sections) {
+        val target = initialHeading ?: return@LaunchedEffect
+        val idx = sections.indexOfFirst { it.heading?.headingId == target }
+        if (idx >= 0) listState.scrollToItem(idx + 1)
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        // 标题栏（AI 总结 + 操作按钮）随正文内容一起滚动，不再固定顶部
+        item(key = "summary_header") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("AI 总结", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (!uiState.isGeneratingSummary) {
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    IconButton(onClick = { clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(summary)) }) {
+                        Icon(Icons.Default.ContentCopy, "复制", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = { viewModel.toggleEditSummary() }) {
+                        Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+        sections.forEach { section ->
+            val heading = section.heading
+            val key = heading?.headingId ?: "preamble"
+            item(key = key) {
+                // 跳转定位的目标章节：整个所属正文（标题 + 全部正文）以 M3 色矩形高亮闪烁一次
+                HighlightSection(highlighted = heading?.headingId == initialHeading) {
+                    if (heading != null) {
+                        val entryId = uiState.entry?.id ?: 0L
+                        SectionHeading(
+                            heading,
+                            uiState.referenceCounts[heading.headingId] ?: 0,
+                            { hid -> if (entryId > 0L) onNavigateToQuestionLinks(entryId, hid) }
+                        )
+                    }
+                    if (section.body.isNotBlank()) {
+                        MarkdownRenderer(section.body)
+                    }
+                }
+            }
+        }
+        item(key = "regenerate") {
+                Spacer(Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = {
+                        val hasExisting = !uiState.entry?.aiSummary.isNullOrBlank()
+                        if (hasExisting) {
+                            val refCount = uiState.referenceCounts.values.sum()
+                            if (refCount > 0) showRegenerateConfirmDialog = true
+                            else showOverwriteDialog = true
+                        } else viewModel.showSummaryModeDialog()
+                    },
+                    enabled = !uiState.isGeneratingFlashcards,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("重新生成 AI 总结")
+                }
+            }
+        }
+}
+
+@Composable
 private fun SummaryDualPane(
     summary: String,
     outlineExpanded: Boolean,
-    outlineOnLeft: Boolean
+    outlineOnLeft: Boolean,
+    initialHeading: String? = null,
+    referenceCounts: Map<String, Int> = emptyMap(),
+    onReferenceClick: ((String) -> Unit)? = null
 ) {
     val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
     val outlineItems = remember(sections) { sections.mapNotNull { it.heading } }
@@ -850,7 +1007,10 @@ private fun SummaryDualPane(
             SectionedSummary(
                 sections = sections,
                 listState = listState,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                referenceCounts = referenceCounts,
+                onReferenceClick = onReferenceClick,
+                initialHeading = initialHeading
             )
             if (outlineExpanded && !outlineOnLeft) {
                 OutlinePanel(
@@ -871,8 +1031,18 @@ private fun SummaryDualPane(
 private fun SectionedSummary(
     sections: List<MarkdownSection>,
     listState: androidx.compose.foundation.lazy.LazyListState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    referenceCounts: Map<String, Int> = emptyMap(),
+    onReferenceClick: ((String) -> Unit)? = null,
+    initialHeading: String? = null
 ) {
+    // 初始定位：从题集解析跳转过来时滚动到对应章节
+    LaunchedEffect(initialHeading, sections) {
+        val target = initialHeading ?: return@LaunchedEffect
+        val idx = sections.indexOfFirst { it.heading?.headingId == target }
+        if (idx >= 0) listState.scrollToItem(idx)
+    }
+
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
@@ -882,11 +1052,18 @@ private fun SectionedSummary(
             val heading = section.heading
             val key = heading?.headingId ?: "preamble"
             item(key = key) {
-                if (heading != null) {
-                    SectionHeading(heading)
-                }
-                if (section.body.isNotBlank()) {
-                    MarkdownRenderer(section.body)
+                // 跳转定位的目标章节：整个所属正文（标题 + 全部正文）以 M3 色矩形高亮闪烁一次
+                HighlightSection(highlighted = heading?.headingId == initialHeading) {
+                    if (heading != null) {
+                        SectionHeading(
+                            heading,
+                            referenceCounts[heading.headingId] ?: 0,
+                            onReferenceClick
+                        )
+                    }
+                    if (section.body.isNotBlank()) {
+                        MarkdownRenderer(section.body)
+                    }
                 }
             }
         }
@@ -894,7 +1071,44 @@ private fun SectionedSummary(
 }
 
 @Composable
-private fun SectionHeading(item: OutlineItem) {
+private fun HighlightSection(
+    highlighted: Boolean,
+    content: @Composable () -> Unit
+) {
+    if (!highlighted) {
+        content()
+        return
+    }
+    // 整个章节块（标题 + 全部所属正文）以 primaryContainer 色矩形高亮，闪烁一次后渐隐
+    var pulseDone by rememberSaveable { mutableStateOf(false) }
+    val pulseAlpha = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        if (!pulseDone) {
+            pulseDone = true
+            pulseAlpha.animateTo(1f, animationSpec = tween(durationMillis = 250))
+            pulseAlpha.animateTo(0f, animationSpec = tween(durationMillis = 1400, easing = FastOutSlowInEasing))
+        }
+    }
+    // 用 Column 纵向排列（Box 是叠层容器会导致标题与正文重叠）
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = pulseAlpha.value),
+                MaterialTheme.shapes.medium
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SectionHeading(
+    item: OutlineItem,
+    referenceCount: Int = 0,
+    onReferenceClick: ((String) -> Unit)? = null
+) {
     val style = when (item.level) {
         1 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
         2 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
@@ -906,13 +1120,30 @@ private fun SectionHeading(item: OutlineItem) {
         2 -> 14.dp
         else -> 10.dp
     }
-    Text(
-        text = item.title,
-        style = style,
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = topPadding, bottom = 4.dp)
-    )
+            .padding(top = topPadding, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = item.title,
+            style = style,
+            modifier = Modifier.weight(1f)
+        )
+        if (referenceCount > 0 && onReferenceClick != null) {
+            val refText = if (referenceCount > 1) "被 $referenceCount 题引用" else "被 1 题引用"
+            Text(
+                text = refText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f), MaterialTheme.shapes.extraSmall)
+                    .clickable { onReferenceClick(item.headingId) }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
 }
 
 @Composable

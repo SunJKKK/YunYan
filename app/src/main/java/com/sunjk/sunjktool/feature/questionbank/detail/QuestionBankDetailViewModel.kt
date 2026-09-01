@@ -21,6 +21,8 @@ import com.sunjk.sunjktool.domain.repository.NotebookRepository
 import com.sunjk.sunjktool.domain.repository.QuestionBankRepository
 import com.sunjk.sunjktool.util.MarkdownOutlineParser
 import com.sunjk.sunjktool.util.MarkdownSection
+import com.sunjk.sunjktool.util.SummaryLinkHelper
+import com.sunjk.sunjktool.util.SummaryLinkRef
 import com.sunjk.sunjktool.util.ocr.OcrManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -96,7 +98,8 @@ class QuestionBankDetailViewModel(
     private val logRepository: LogRepository,
     private val notebookRepository: NotebookRepository,
     private val apiPreferences: ApiPreferences,
-    private val categoryId: Long
+    private val categoryId: Long,
+    private val initialQuestionId: Long? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuestionBankDetailUiState())
@@ -153,7 +156,10 @@ class QuestionBankDetailViewModel(
             }
             launch {
                 repository.getQuestionsByCategoryId(categoryId).collect { questions ->
-                    _uiState.update { it.copy(questions = questions) }
+                    val initial = initialQuestionId
+                    val expanded = if (initial != null && questions.any { it.id == initial })
+                        setOf(initial) else emptySet()
+                    _uiState.update { it.copy(questions = questions, expandedQuestionIds = expanded) }
                 }
             }
             launch {
@@ -279,7 +285,10 @@ class QuestionBankDetailViewModel(
             _uiState.update { it.copy(newQuestionError = "请输入题目内容或上传图片") }
             return
         }
-        viewModelScope.launch {
+        val taskTitle = state.category?.name?.let { "题集解析·$it" } ?: "题集解析"
+        AiGenerationManager.start(AiTaskType.QUESTION_BANK, categoryId, taskTitle)
+        AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别图片文字…")
+        AiGenerationManager.scope.launch {
             _uiState.update {
                 it.copy(
                     isGeneratingAnalysis = true,
@@ -290,9 +299,9 @@ class QuestionBankDetailViewModel(
                 )
             }
             try {
-                // Phase 1: OCR
+                // Phase 1: OCR —— 用 applicationContext，后台任务在页面退出后仍安全
                 val ocrText = if (state.newQuestionImages.isNotEmpty()) {
-                    OcrManager.recognize(context, state.newQuestionImages)
+                    OcrManager.recognize(context.applicationContext, state.newQuestionImages)
                 } else ""
 
                 // Combine user text + OCR text
@@ -311,6 +320,7 @@ class QuestionBankDetailViewModel(
 
                 // Phase 2: Split questions
                 _uiState.update { it.copy(generationProgress = "正在识别和拆题…", generationPhase = "split") }
+                AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别和拆题…")
                 val splitResult = withTimeout(300000) {
                     deepSeekApi.chatCompletion(
                         systemPrompt = apiPreferences.getPrompt(PromptKeys.QUESTION_SPLIT) ?: "你是一位题目识别专家。用户提供了一段文本，其中可能包含多道题目。请识别出每道独立的题目，并将它们拆分出来。\n\n规则：\n1. 按题号（如 1. / ① / (1) / 一、等）、空行分隔、语义边界来识别题目\n2. 合并跨页或跨段的同一道题\n3. 忽略非题目的杂文（如页码、水印、无关说明）\n4. 保留每道题的完整题干文本\n5. 如果文本中只有一道题，也正常拆分\n\n输出纯 JSON，格式：{\"questions\":[{\"index\":0,\"content\":\"题干内容…\"},{\"index\":1,\"content\":\"题干内容…\"}]}",
@@ -323,6 +333,7 @@ class QuestionBankDetailViewModel(
                 val splitItems = splitParsed.questions.map { SplitQuestionItem(it.index, it.content) }
 
                 if (splitItems.isEmpty()) {
+                    AiGenerationManager.fail(AiTaskType.QUESTION_BANK, categoryId, "未能识别到题目，请检查输入内容")
                     _uiState.update { it.copy(isGeneratingAnalysis = false, newQuestionError = "未能识别到题目，请检查输入内容") }
                     return@launch
                 }
@@ -330,9 +341,11 @@ class QuestionBankDetailViewModel(
                 _uiState.update { it.copy(splitQuestions = splitItems) }
 
                 if (apiPreferences.isQuestionBankAutoSave()) {
-                    // 一键直达：保持生成状态，跳过拆分确认和预览，直接进入解析生成
+                    // 一键直达：保持生成状态，跳过拆分确认和预览，直接进入解析生成（后台续跑）
                     generateAnalyses(context)
                 } else {
+                    // 非自动保存：拆分完成停住等待用户确认，结束本轮后台任务
+                    AiGenerationManager.remove(AiTaskType.QUESTION_BANK, categoryId)
                     _uiState.update {
                         it.copy(
                             isGeneratingAnalysis = false,
@@ -349,6 +362,7 @@ class QuestionBankDetailViewModel(
                     "split" -> "题目拆分"
                     else -> "处理"
                 }
+                AiGenerationManager.fail(AiTaskType.QUESTION_BANK, categoryId, "$phaseDesc 失败: ${e.message}")
                 _uiState.update { it.copy(isGeneratingAnalysis = false, generationPhase = "idle", newQuestionError = "$phaseDesc 失败: ${e.message}") }
             }
         }
@@ -369,7 +383,10 @@ class QuestionBankDetailViewModel(
         val taskTitle = state.category?.name?.let { "题集解析·$it" } ?: "题集解析"
 
         _uiState.update { it.copy(isGeneratingAnalysis = true, generationProgress = "正在检索相关知识…", generationPhase = "retrieval", showSplitReview = false, newQuestionError = null) }
-        AiGenerationManager.start(AiTaskType.QUESTION_BANK, categoryId, taskTitle)
+        // 自动保存场景由 startGeneration 启动任务，此处复用同一任务保持阶段连续；手动触发时新建
+        if (AiGenerationManager.task(AiTaskType.QUESTION_BANK, categoryId) == null) {
+            AiGenerationManager.start(AiTaskType.QUESTION_BANK, categoryId, taskTitle)
+        }
 
         AiGenerationManager.scope.launch {
             try {
@@ -420,11 +437,20 @@ class QuestionBankDetailViewModel(
                 // 方案A：把全部被选中章节的并集作为公共知识背景前缀。
                 // 所有题共享同一份 systemPrompt（仅 user 段变化）→ 命中 DeepSeek 上下文硬盘缓存，
                 // 第 2 题起的输入费用降至缓存命中价（约为未命中的 1/30~1/50）。
-                val commonContext = selections.values.flatten()
-                    .distinctBy { (entry, section) -> "${entry.id}_${section.heading?.title}" }
-                    .joinToString("\n\n") { (entry, section) ->
-                        "学习记录「${entry.title}」（${entry.subject}）·《${section.heading?.title}》：\n${section.body}"
+                // 每个章节（任意标题层级，可能是二级/三级标题）分配一个编号 [ref:N]，
+                // AI 引用某知识点时插入 [[ref:N]]，程序再替换为精确指向该标题的内部链接。
+                val commonRefs = selections.values.flatten()
+                    .distinctBy { (entry, section) -> "${entry.id}_${section.heading?.headingId}" }
+                val commonLinkRefs = mutableListOf<SummaryLinkRef>()
+                val commonContext = buildString {
+                    commonRefs.forEach { (entry, section) ->
+                        val h = section.heading ?: return@forEach
+                        val idx = commonLinkRefs.size
+                        commonLinkRefs.add(SummaryLinkRef(entry.id, h.headingId, h.title))
+                        if (idx > 0) append("\n\n")
+                        append("[ref:$idx] 学习记录「${entry.title}」（${entry.subject}）·《${h.title}》：\n${section.body}")
                     }
+                }
                 val commonSystemPrompt = buildAnalysisSystemPrompt(categoryPath, matchedEntries.isNotEmpty(), commonContext)
 
                 // ── Phase 4b: 逐题独立请求生成解析 + knowledgePoint ──
@@ -469,7 +495,7 @@ class QuestionBankDetailViewModel(
                         }
                         val parsed = parseTwoSectionCards(response, 1)[0]
                         if (parsed.isNullOrBlank()) failedIndices.add(item.index)
-                        else analyses[item.index] = parsed
+                        else analyses[item.index] = SummaryLinkHelper.replaceRefMarkers(parsed, commonLinkRefs)
                     } catch (e: Exception) {
                         android.util.Log.w("QuestionBank", "解析生成失败（第${item.index + 1}题）: ${e.message}")
                         failedIndices.add(item.index)
@@ -582,6 +608,10 @@ class QuestionBankDetailViewModel(
             append("判定依据是下方「学习记录知识背景」中沉淀的知识点体系——先判断本题属于哪类题型/考点，再用该体系中的术语命名 knowledgePoint，保持与学习记录中的叫法一致。\n")
             append("示例：一道片段阅读题，材料讲的是「教育方法」（题材），但根据学习记录中的知识点可知该题属于「后对策类说理结构」（题型），则 knowledgePoint 填「后对策类说理结构」，绝不填「教育方法」。\n")
             append("仅当学习记录知识背景中找不到可对应的考点，且题目本身无法归类到任何方法论时，才退而填写最核心的知识概念。3-10 字。\n")
+            append("\n## 引用链接规则\n")
+            append("解析正文中，当实际使用了下方「学习记录知识背景」中某条章节的方法、知识点或结论时，在该处插入链接标记 [[ref:N]]（N 为该章节编号，见背景中每条开头的 [ref:N]）。\n")
+            append("标记应紧跟在使用该内容的知识点句末，不要单独成行。可引用多条章节；编号务必使用背景中真实出现的 [ref:N]，不要编造。\n")
+            append("仅当确实引用了该章节内容时才插入；背景未涵盖或与本题无关时不要插入。\n")
             append("\n相关知识背景（来自笔记本「${if (hasPathMatch) categoryPath else "全部（未找到路径匹配的笔记本）"}」的学习记录）：\n$kpContext\n")
         }
     }

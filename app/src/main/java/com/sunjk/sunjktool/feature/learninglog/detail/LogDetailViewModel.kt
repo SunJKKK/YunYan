@@ -19,8 +19,10 @@ import com.sunjk.sunjktool.domain.model.toDomain
 import com.sunjk.sunjktool.domain.repository.FlashcardRepository
 import com.sunjk.sunjktool.domain.repository.LogRepository
 import com.sunjk.sunjktool.domain.model.ReviewNote
+import com.sunjk.sunjktool.domain.repository.QuestionBankRepository
 import com.sunjk.sunjktool.domain.repository.ReviewNoteRepository
 import com.sunjk.sunjktool.util.ReviewHelper
+import com.sunjk.sunjktool.util.SummaryLinkHelper
 import com.sunjk.sunjktool.util.ocr.OcrManager
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.async
@@ -71,7 +73,9 @@ data class LogDetailUiState(
     // Self-check
     val selfCheckContent: String = "",
     val isGeneratingSelfCheck: Boolean = false,
-    val selfCheckRevealedSet: Set<Int> = emptySet()
+    val selfCheckRevealedSet: Set<Int> = emptySet(),
+    // 反向关联：headingId -> 引用该章节的题目数（由题集解析正文扫描而来）
+    val referenceCounts: Map<String, Int> = emptyMap()
 )
 
 
@@ -83,7 +87,8 @@ class LogDetailViewModel(
     private val reviewNoteRepository: ReviewNoteRepository,
 
     private val apiPreferences: ApiPreferences,
-    private val logId: Long
+    private val logId: Long,
+    private val questionBankRepository: QuestionBankRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LogDetailUiState())
@@ -121,6 +126,20 @@ class LogDetailViewModel(
         viewModelScope.launch {
             reviewNoteRepository.getByLogEntryId(logId).collect { notes ->
                 _uiState.update { it.copy(reviewNotes = notes) }
+            }
+        }
+        // 反向关联：扫描全部题目解析正文，统计当前学习记录的每个章节被多少道题引用
+        viewModelScope.launch {
+            questionBankRepository.getAllQuestions().collect { allQuestions ->
+                val counts = mutableMapOf<String, Int>()
+                for (q in allQuestions) {
+                    SummaryLinkHelper.extractInternalLinks(q.aiAnalysis).forEach { link ->
+                        if (link.logEntryId == logId) {
+                            counts[link.headingId] = (counts[link.headingId] ?: 0) + 1
+                        }
+                    }
+                }
+                _uiState.update { it.copy(referenceCounts = counts) }
             }
         }
         viewModelScope.launch {

@@ -11,8 +11,10 @@ sealed class Screen(val route: String) {
             return "learning_log/edit?logId=$lid&notebookId=$nid"
         }
     }
-    data object LogDetail : Screen("learning_log/{logId}") {
-        fun createRoute(logId: Long) = "learning_log/$logId"
+    data object LogDetail : Screen("learning_log/{logId}?heading={heading}") {
+        fun createRoute(logId: Long, heading: String? = null): String =
+            if (heading != null) "learning_log/$logId?heading=$heading"
+            else "learning_log/$logId?heading="
     }
     data object CountdownList : Screen("countdown/list")
     data object CountdownEdit : Screen("countdown/edit?countdownId={countdownId}") {
@@ -84,8 +86,13 @@ sealed class Screen(val route: String) {
     data object Todo : Screen("todo")
 
     data object QuestionBankList : Screen("question_bank/list")
-    data object QuestionBankDetail : Screen("question_bank/detail/{categoryId}") {
-        fun createRoute(categoryId: Long) = "question_bank/detail/$categoryId"
+    data object QuestionBankDetail : Screen("question_bank/detail/{categoryId}?questionId={questionId}") {
+        fun createRoute(categoryId: Long, questionId: Long? = null): String =
+            if (questionId != null) "question_bank/detail/$categoryId?questionId=$questionId"
+            else "question_bank/detail/$categoryId?questionId=-1"
+    }
+    data object QuestionLinkList : Screen("question_links/{logId}/{headingId}") {
+        fun createRoute(logId: Long, headingId: String) = "question_links/$logId/$headingId"
     }
     data object QuestionBankEdit : Screen("question_bank/edit?categoryId={categoryId}&parentId={parentId}") {
         fun createRoute(categoryId: Long? = null, parentId: Long? = null): String {

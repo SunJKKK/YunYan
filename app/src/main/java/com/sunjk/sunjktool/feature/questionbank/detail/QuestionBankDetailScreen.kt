@@ -31,9 +31,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -72,9 +74,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +101,7 @@ import com.sunjk.sunjktool.ui.components.EmptyState
 import com.sunjk.sunjktool.ui.components.LoadingIndicator
 import com.sunjk.sunjktool.ui.components.MarkdownRenderer
 import com.sunjk.sunjktool.util.ImageUtil
+import com.sunjk.sunjktool.util.SummaryLinkHelper
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,10 +113,36 @@ fun QuestionBankDetailScreen(
     onNavigateToEdit: () -> Unit,
     onNavigateToAddSubCategory: () -> Unit,
     onNavigateToBreadcrumb: (Long) -> Unit,
+    initialQuestionId: Long? = null,
+    onNavigateToLogDetail: (logId: Long, heading: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // 内部链接点击：跳转到学习记录 AI 总结对应章节
+    val handleInternalLink: (String) -> Unit = { url ->
+        SummaryLinkHelper.parseInternalLinkUrl(url)?.let { target ->
+            onNavigateToLogDetail(target.logEntryId, target.headingId)
+        }
+    }
+
+    // 反向跳入：初始定位并展开指定题目（仅首次进入定位；从下级返回时保持原滚动位置）
+    val listState = rememberLazyListState()
+    var didInitialScroll by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(initialQuestionId, uiState.questions) {
+        if (didInitialScroll) return@LaunchedEffect
+        val targetId = initialQuestionId ?: return@LaunchedEffect
+        val qIndex = uiState.questions.indexOfFirst { it.id == targetId }
+        if (qIndex >= 0) {
+            var idx = 0
+            if (uiState.breadcrumbs.isNotEmpty()) idx += 1
+            if (uiState.subCategories.isNotEmpty()) idx += 2 + uiState.subCategories.size
+            if (uiState.questions.isNotEmpty()) idx += 1
+            listState.scrollToItem(idx + qIndex)
+            didInitialScroll = true
+        }
+    }
 
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -538,6 +569,7 @@ fun QuestionBankDetailScreen(
         }
 
         LazyColumn(
+            state = listState,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
@@ -608,7 +640,8 @@ fun QuestionBankDetailScreen(
                     isExpanded = isExpanded,
                     onToggle = { viewModel.toggleQuestion(question.id) },
                     onDelete = { viewModel.requestDeleteQuestion(question.id) },
-                    isGlobalExpanded = uiState.globalExpandAll
+                    isGlobalExpanded = uiState.globalExpandAll,
+                    onInternalLinkClick = handleInternalLink
                 )
             }
         }
@@ -678,7 +711,8 @@ private fun QuestionCard(
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
-    isGlobalExpanded: Boolean
+    isGlobalExpanded: Boolean,
+    onInternalLinkClick: ((String) -> Unit)? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -907,7 +941,7 @@ private fun QuestionCard(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     // Full explanation
-                    MarkdownRenderer(explanation)
+                    MarkdownRenderer(explanation, onInternalLinkClick = onInternalLinkClick)
                 }
             }
         }
