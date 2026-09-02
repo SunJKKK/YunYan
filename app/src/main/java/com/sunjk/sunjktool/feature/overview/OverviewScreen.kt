@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,6 +54,7 @@ import com.sunjk.sunjktool.data.model.ReviewStatusEntity
 import com.sunjk.sunjktool.domain.model.Habit
 import com.sunjk.sunjktool.domain.model.LifeLogEntry
 import com.sunjk.sunjktool.domain.model.LogEntry
+import com.sunjk.sunjktool.domain.model.Question
 import com.sunjk.sunjktool.feature.lifelog.MoodConfig
 import com.sunjk.sunjktool.ui.components.OverviewCalendar
 import com.sunjk.sunjktool.util.formatDate
@@ -67,6 +69,7 @@ fun OverviewScreen(
     onNavigateToLogDetail: (Long) -> Unit,
     onNavigateToReviewList: () -> Unit,
     onNavigateToLifeLogDetail: (Long) -> Unit,
+    onNavigateToQuestion: (categoryId: Long, questionId: Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -213,6 +216,20 @@ fun OverviewScreen(
                 }
             }
 
+            // Question bank questions added on the day
+            if (uiState.dailyQuestions.isNotEmpty()) {
+                item {
+                    SectionHeader("题集题目 (${uiState.dailyQuestions.size})")
+                }
+                items(uiState.dailyQuestions.take(5).size) { idx ->
+                    val question = uiState.dailyQuestions[idx]
+                    DailyQuestionCard(
+                        question = question,
+                        onClick = { onNavigateToQuestion(question.categoryId, question.id) }
+                    )
+                }
+            }
+
             // Review tasks
             if (uiState.reviewTasks.isNotEmpty()) {
                 item {
@@ -282,7 +299,7 @@ fun OverviewScreen(
             }
 
             // Empty
-            if (uiState.logEntries.isEmpty() && uiState.reviewTasks.isEmpty() && uiState.lifeLogs.isEmpty() && uiState.todoTasks.isEmpty()) {
+            if (uiState.logEntries.isEmpty() && uiState.reviewTasks.isEmpty() && uiState.lifeLogs.isEmpty() && uiState.todoTasks.isEmpty() && uiState.dailyQuestions.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("当天暂无记录", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -312,5 +329,69 @@ private fun StatChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text
             Spacer(Modifier.width(6.dp))
             Text(text, style = MaterialTheme.typography.labelMedium)
         }
+    }
+}
+
+/** 当日新增题集题目预览卡片，点击跳转题集详情并定位到该题 */
+@Composable
+private fun DailyQuestionCard(
+    question: Question,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 题目类型徽章，与题集详情页 QuestionCard 一致
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            ) {
+                Text(
+                    text = questionTypeLabel(question.aiAnalysis),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = question.content,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun questionTypeLabel(aiAnalysis: String): String {
+    if (!aiAnalysis.trim().startsWith("{")) return "简答题"
+    return try {
+        val type = kotlinx.serialization.json.Json.parseToJsonElement(aiAnalysis)
+            .let { it as? kotlinx.serialization.json.JsonObject }
+            ?.get("type")?.toString()?.trim('"')
+        when (type) {
+            "single_choice" -> "单选题"
+            "multi_choice" -> "多选题"
+            "true_false" -> "判断题"
+            else -> "简答题"
+        }
+    } catch (_: Exception) {
+        "简答题"
     }
 }

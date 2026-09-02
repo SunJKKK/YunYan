@@ -13,8 +13,8 @@ sealed class Screen(val route: String) {
     }
     data object LogDetail : Screen("learning_log/{logId}?heading={heading}") {
         fun createRoute(logId: Long, heading: String? = null): String =
-            if (heading != null) "learning_log/$logId?heading=$heading"
-            else "learning_log/$logId?heading="
+            if (heading != null && heading.isNotBlank()) "learning_log/$logId?heading=$heading"
+            else "learning_log/$logId"
     }
     data object CountdownList : Screen("countdown/list")
     data object CountdownEdit : Screen("countdown/edit?countdownId={countdownId}") {
@@ -89,6 +89,8 @@ sealed class Screen(val route: String) {
     }
 
     data object Overview : Screen("overview")
+
+    data object LearningStats : Screen("learning_stats")
 
     data object Todo : Screen("todo")
 

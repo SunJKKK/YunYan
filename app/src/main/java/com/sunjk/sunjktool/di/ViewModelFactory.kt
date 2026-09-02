@@ -303,11 +303,23 @@ class OverviewVMF(
     private val habitRepo: HabitRepository,
     private val reviewDao: ReviewStatusDao,
     private val lifeLogRepo: com.sunjk.sunjktool.domain.repository.LifeLogRepository,
+    private val questionBankRepo: com.sunjk.sunjktool.domain.repository.QuestionBankRepository,
     private val tickTickRepository: com.sunjk.sunjktool.domain.repository.TickTickRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        com.sunjk.sunjktool.feature.overview.OverviewViewModel(logRepo, pomodoroRecordDao, habitRepo, reviewDao, lifeLogRepo, tickTickRepository) as T
+        com.sunjk.sunjktool.feature.overview.OverviewViewModel(logRepo, pomodoroRecordDao, habitRepo, reviewDao, lifeLogRepo, questionBankRepo, tickTickRepository) as T
+}
+
+class LearningStatsVMF(
+    private val logRepo: LogRepository,
+    private val pomodoroRecordDao: com.sunjk.sunjktool.data.local.dao.PomodoroRecordDao,
+    private val notebookRepo: NotebookRepository,
+    private val questionBankRepo: com.sunjk.sunjktool.domain.repository.QuestionBankRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        com.sunjk.sunjktool.feature.stats.LearningStatsViewModel(logRepo, pomodoroRecordDao, notebookRepo, questionBankRepo) as T
 }
 
 class LifeLogDetailVMF(

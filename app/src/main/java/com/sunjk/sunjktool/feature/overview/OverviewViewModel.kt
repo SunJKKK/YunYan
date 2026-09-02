@@ -9,9 +9,11 @@ import com.sunjk.sunjktool.domain.model.Habit
 import com.sunjk.sunjktool.domain.model.LifeLogEntry
 import com.sunjk.sunjktool.domain.model.LogEntry
 import com.sunjk.sunjktool.data.remote.TickTickTask
+import com.sunjk.sunjktool.domain.model.Question
 import com.sunjk.sunjktool.domain.repository.HabitRepository
 import com.sunjk.sunjktool.domain.repository.LifeLogRepository
 import com.sunjk.sunjktool.domain.repository.LogRepository
+import com.sunjk.sunjktool.domain.repository.QuestionBankRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,7 @@ data class OverviewUiState(
     val reviewTasks: List<OverviewReviewItem> = emptyList(),
     val lifeLogs: List<LifeLogEntry> = emptyList(),
     val todoTasks: List<TickTickTask> = emptyList(),
+    val dailyQuestions: List<Question> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -58,6 +61,7 @@ class OverviewViewModel(
     private val habitRepository: HabitRepository,
     private val reviewStatusDao: ReviewStatusDao,
     private val lifeLogRepository: LifeLogRepository,
+    private val questionBankRepository: QuestionBankRepository,
     private val tickTickRepository: com.sunjk.sunjktool.domain.repository.TickTickRepository? = null
 ) : ViewModel() {
 
@@ -67,19 +71,33 @@ class OverviewViewModel(
     private var allLogEntries: List<LogEntry> = emptyList()
     private var allLifeLogs: List<LifeLogEntry> = emptyList()
     private var allTodoTasks: List<TickTickTask> = emptyList()
+    private var allQuestions: List<Question> = emptyList()
 
     init {
         viewModelScope.launch {
             logRepository.getAllEntries().collect { logs ->
                 allLogEntries = logs
-                val markedDates = logs.map { it.createdDate.toLocalDate() }.toSet()
-                _uiState.update { it.copy(markedDates = markedDates) }
+                _uiState.update {
+                    it.copy(
+                        markedDates = logs.map { l -> l.createdDate.toLocalDate() }.toSet() +
+                                allQuestions.map { q -> q.createdDate.toLocalDate() }
+                    )
+                }
                 loadDateData(_uiState.value.selectedDate)
             }
         }
         viewModelScope.launch {
             lifeLogRepository.getAllEntries().collect { logs ->
                 allLifeLogs = logs
+                loadDateData(_uiState.value.selectedDate)
+            }
+        }
+        viewModelScope.launch {
+            questionBankRepository.getAllQuestions().collect { questions ->
+                allQuestions = questions
+                _uiState.update {
+                    it.copy(markedDates = it.markedDates + questions.map { q -> q.createdDate.toLocalDate() })
+                }
                 loadDateData(_uiState.value.selectedDate)
             }
         }
@@ -135,6 +153,10 @@ class OverviewViewModel(
                 )
             }
             val habits = habitRepository.getAll().first()
+            val dailyQuestions = withContext(Dispatchers.Default) {
+                allQuestions.filter { it.createdDate.toLocalDate() == date }
+                    .sortedByDescending { it.createdDate }
+            }
             val records = habitRepository.getAllRecords().first()
             val focusSecs = pomodoroRecordDao.getByDate(date.toString())?.focusSecs ?: 0L
             val habitsWithStatus = habits.map { h ->
@@ -147,6 +169,7 @@ class OverviewViewModel(
                     logEntries = logs, logEntryCount = logs.size,
                     lifeLogs = lifeLogs,
                     todoTasks = todoTasks,
+                    dailyQuestions = dailyQuestions,
                     reviewTasks = reviews,
                     habits = habitsWithStatus,
                     focusSecs = focusSecs,

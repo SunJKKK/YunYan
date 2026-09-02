@@ -45,7 +45,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -608,6 +612,26 @@ private fun SummaryTab(
     var showOverwriteDialog by remember { mutableStateOf(false) }
     var showRegenerateConfirmDialog by remember { mutableStateOf(false) }
 
+    // ── 渲染策略诊断日志：进入 AI 总结 Tab 时打印一次判定依据 ──
+    LaunchedEffect(Unit) {
+        val predicted = when {
+            uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank() ->
+                "平板-双栏 SummaryDualPane"
+            !uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank() && initialHeading != null ->
+                "手机-分章节定位 MobileSectionedSummary"
+            !uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank() ->
+                "手机-全量渲染 EagerMobileSummary"
+            uiState.isGeneratingSummary -> "生成中态(phase=${uiState.summaryGenerationPhase})"
+            else -> "空态/编辑态/其他(editing=${uiState.isEditingSummary})"
+        }
+        Log.d(
+            "AI总结渲染",
+            "进入SummaryTab | predicted=$predicted | tablet=${uiState.isTabletMode} editing=${uiState.isEditingSummary} " +
+                "generating=${uiState.isGeneratingSummary} summaryLen=${summary.length} hasSummary=${summary.isNotBlank()} " +
+                "heading=${initialHeading ?: "null"} phase=${uiState.summaryGenerationPhase}"
+        )
+    }
+
     // 引用失效确认：重新生成会破坏题集解析 → 本章节的跳转链接
     if (showRegenerateConfirmDialog) {
         val refCount = uiState.referenceCounts.values.sum()
@@ -752,7 +776,7 @@ private fun SummaryTab(
 
     // 手机端：有内容且非编辑/生成时，按章节分块渲染（支持初始定位 + 章节被引用入口）
     if (!uiState.isTabletMode && !uiState.isEditingSummary && !uiState.isGeneratingSummary && summary.isNotBlank()) {
-        if (initialHeading != null) {
+        if (!initialHeading.isNullOrBlank()) {
             MobileSectionedSummary(
                 summary = summary,
                 uiState = uiState,
@@ -880,6 +904,9 @@ private fun EagerMobileSummary(
     val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
     val sectionBlocks = remember(sections) { sections.map { it to splitMarkdownBlocks(it.body) } }
     val scrollState = rememberScrollState()
+    LaunchedEffect(Unit) {
+        Log.d("AI总结渲染", "实际进入 -> 手机-全量渲染 EagerMobileSummary（sections=${sections.size}）")
+    }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
@@ -918,6 +945,9 @@ private fun MobileSectionedSummary(
     val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
     val sectionBlocks = remember(sections) { sections.map { it to splitMarkdownBlocks(it.body) } }
     val listState = rememberLazyListState()
+    LaunchedEffect(Unit) {
+        Log.d("AI总结渲染", "实际进入 -> 手机-分章节定位 MobileSectionedSummary（heading=$initialHeading sections=${sections.size}）")
+    }
     var showOverwriteDialog by remember { mutableStateOf(false) }
     var showRegenerateConfirmDialog by remember { mutableStateOf(false) }
 
@@ -1038,6 +1068,12 @@ private fun SummaryDualPane(
     val sections = remember(summary) { MarkdownOutlineParser.splitSections(summary) }
     val outlineItems = remember(sections) { sections.mapNotNull { it.heading } }
     val listState = rememberLazyListState()
+    // 平板全量分支（无 heading）使用共享 ScrollState + 标题偏移表，驱动大纲跳转/高亮
+    val scrollState = rememberScrollState()
+    val headingOffsets = remember { mutableStateMapOf<String, Float>() }
+    LaunchedEffect(Unit) {
+        Log.d("AI总结渲染", "实际进入 -> 平板-双栏 SummaryDualPane（heading=${initialHeading ?: "null"} sections=${sections.size}）")
+    }
     val scope = rememberCoroutineScope()
 
     var currentHeadingId by remember { mutableStateOf<String?>(null) }
@@ -1057,6 +1093,16 @@ private fun SummaryDualPane(
             }
     }
 
+    // 无 heading（全量 Column 渲染）：由滚动偏移 + 标题偏移表推导当前章节
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.value }
+            .collect { offset ->
+                currentHeadingId = headingOffsets.entries
+                    .filter { it.value <= offset + 4f }
+                    .maxByOrNull { it.value }?.key
+            }
+    }
+
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
             if (outlineExpanded && outlineOnLeft) {
@@ -1064,13 +1110,20 @@ private fun SummaryDualPane(
                     items = outlineItems,
                     currentHeadingId = currentHeadingId,
                     onItemClick = { item ->
-                        val idx = headingItemIndex[item.headingId]
-                        if (idx != null) scope.launch { listState.animateScrollToItem(idx) }
+                        scope.launch {
+                            if (!initialHeading.isNullOrBlank()) {
+                                val idx = headingItemIndex[item.headingId]
+                                if (idx != null) listState.animateScrollToItem(idx)
+                            } else {
+                                val offset = headingOffsets[item.headingId]
+                                if (offset != null) scrollState.animateScrollTo(offset.toInt())
+                            }
+                        }
                     },
                     modifier = Modifier.width(280.dp)
                 )
             }
-            if (initialHeading != null) {
+            if (!initialHeading.isNullOrBlank()) {
                 SectionedSummary(
                     sections = sections,
                     listState = listState,
@@ -1084,7 +1137,9 @@ private fun SummaryDualPane(
                     sections = sections,
                     modifier = Modifier.weight(1f),
                     referenceCounts = referenceCounts,
-                    onReferenceClick = onReferenceClick
+                    onReferenceClick = onReferenceClick,
+                    scrollState = scrollState,
+                    onHeadingPositioned = { id, y -> headingOffsets[id] = y }
                 )
             }
             if (outlineExpanded && !outlineOnLeft) {
@@ -1092,8 +1147,15 @@ private fun SummaryDualPane(
                     items = outlineItems,
                     currentHeadingId = currentHeadingId,
                     onItemClick = { item ->
-                        val idx = headingItemIndex[item.headingId]
-                        if (idx != null) scope.launch { listState.animateScrollToItem(idx) }
+                        scope.launch {
+                            if (!initialHeading.isNullOrBlank()) {
+                                val idx = headingItemIndex[item.headingId]
+                                if (idx != null) listState.animateScrollToItem(idx)
+                            } else {
+                                val offset = headingOffsets[item.headingId]
+                                if (offset != null) scrollState.animateScrollTo(offset.toInt())
+                            }
+                        }
                     },
                     modifier = Modifier.width(280.dp)
                 )
@@ -1124,16 +1186,30 @@ private fun EagerTabletSummary(
     sections: List<MarkdownSection>,
     modifier: Modifier,
     referenceCounts: Map<String, Int>,
-    onReferenceClick: ((String) -> Unit)?
+    onReferenceClick: ((String) -> Unit)?,
+    scrollState: ScrollState,
+    onHeadingPositioned: (String, Float) -> Unit
 ) {
     val items = remember(sections) { buildSummaryLazyItems(sections) }
+    LaunchedEffect(Unit) {
+        Log.d("AI总结渲染", "实际进入 -> 平板-全量渲染 EagerTabletSummary（sections=${sections.size}）")
+    }
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+        modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp)
     ) {
         items.forEach { item ->
             val heading = item.section.heading
             if (item.isHeading && heading != null) {
-                SectionHeading(heading, referenceCounts[heading.headingId] ?: 0, onReferenceClick)
+                // 记录章节标题在内容内的 Y 偏移（verticalScroll 滚动不改变内容坐标系），供大纲跳转/高亮
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coords ->
+                            onHeadingPositioned(heading.headingId, coords.positionInParent().y)
+                        }
+                ) {
+                    SectionHeading(heading, referenceCounts[heading.headingId] ?: 0, onReferenceClick)
+                }
             } else {
                 item.block?.let { MarkdownRenderer(it.content) }
             }
@@ -1151,6 +1227,9 @@ private fun SectionedSummary(
     initialHeading: String? = null
 ) {
     val items = remember(sections) { buildSummaryLazyItems(sections) }
+    LaunchedEffect(Unit) {
+        Log.d("AI总结渲染", "实际进入 -> 平板-分章节定位 SectionedSummary（heading=$initialHeading items=${items.size}）")
+    }
     // 初始定位：从题集解析跳转到目标章节的标题 item
     LaunchedEffect(initialHeading, items) {
         val target = initialHeading ?: return@LaunchedEffect

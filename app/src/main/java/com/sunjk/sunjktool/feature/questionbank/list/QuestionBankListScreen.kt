@@ -1,7 +1,7 @@
 package com.sunjk.sunjktool.feature.questionbank.list
 
 import android.content.Context
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
@@ -32,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -42,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -137,9 +141,15 @@ fun QuestionBankListScreen(
                 else -> {
                     LazyColumn(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize().weight(1f)
                     ) {
+                        item {
+                            SummaryChip(
+                                categoryCount = uiState.rootCategories.size,
+                                questionCount = uiState.rootCategories.sumOf { it.questionCount }
+                            )
+                        }
                         items(uiState.rootCategories, key = { it.id }) { category ->
                             CategoryCard(
                                 name = category.name,
@@ -157,6 +167,36 @@ fun QuestionBankListScreen(
 }
 
 @Composable
+private fun SummaryChip(
+    categoryCount: Int,
+    questionCount: Int
+) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Quiz,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "$categoryCount 个题集 · $questionCount 道题",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun CategoryCard(
     name: String,
     subCount: Int,
@@ -165,9 +205,8 @@ private fun CategoryCard(
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -179,28 +218,37 @@ private fun CategoryCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Quiz,
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            // 图标放在 tonal 圆形底衬里，与笔记本卡片风格一致
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Quiz,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (subCount > 0 || questionCount > 0) {
+                val parts = buildList {
+                    if (subCount > 0) add("$subCount 个子题集")
+                    if (questionCount > 0) add("$questionCount 道题")
+                }
+                if (parts.isNotEmpty()) {
                     Text(
-                        text = buildString {
-                            if (subCount > 0) append("$subCount 个子分类")
-                            if (subCount > 0 && questionCount > 0) append(" · ")
-                            if (questionCount > 0) append("$questionCount 道题")
-                        },
-                        style = MaterialTheme.typography.labelSmall,
+                        text = parts.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

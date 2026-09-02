@@ -50,6 +50,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -96,6 +98,7 @@ fun HomeScreen(
     onNavigateToWeatherDetail: () -> Unit,
     onNavigateToCountdownList: () -> Unit,
     onNavigateToLearningRecord: () -> Unit,
+    onNavigateToLearningStats: () -> Unit = {},
     onNavigateToPomodoro: () -> Unit,
     onNavigateToDeepSeek: () -> Unit,
     onNavigateToReview: () -> Unit,
@@ -219,7 +222,7 @@ fun HomeScreen(
                             ) {
                                 when {
                             module.moduleKey == "heatmap" -> HomeSection(title = "学习热力图") {
-                                Box(modifier = Modifier.clickable { onNavigateToLearningRecord() }) {
+                                Box(modifier = Modifier.clickable { onNavigateToLearningStats() }) {
                                     CompactLearningHeatmap(
                                         dailyCounts = uiState.heatmapData,
                                         isLarge = module.size == "large"
@@ -631,7 +634,6 @@ private fun HabitHomeCard(
     onClick: () -> Unit
 ) {
     val habitColor = androidx.compose.ui.graphics.Color(item.habit.colorArgb)
-    val habitOnColor = if (habitColor.luminance() > 0.5f) Color.Black else Color.White
 
     // Stats: current streak + check-ins this month
     val (streak, monthCount) = remember(item.completedDates) {
@@ -655,26 +657,74 @@ private fun HabitHomeCard(
             .padding(12.dp)
             .clickable { onClick() }
     ) {
-        // Header: color dot + name
+        // Header: check-in circle + name + streak badge
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(habitColor)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                item.habit.name,
-                style = if (isLarge) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-            if (isLarge) {
+            // 打卡圆钮：与习惯列表页一致的样式
+            Surface(
+                onClick = onToggle,
+                shape = CircleShape,
+                color = if (item.isCompleted) habitColor
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(if (isLarge) 38.dp else 34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (item.isCompleted) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "取消打卡",
+                            modifier = Modifier.size(if (isLarge) 20.dp else 18.dp),
+                            tint = Color.White
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(habitColor.copy(alpha = 0.55f))
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    "连续 $streak 天 · 本月 $monthCount 次",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    item.habit.name,
+                    style = if (isLarge) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (item.isCompleted)
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    else
+                        MaterialTheme.colorScheme.onSurface
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (streak > 0) {
+                        Icon(
+                            Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            "$streak 天",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        "本月 $monthCount 次",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            if (item.isCompleted) {
+                Text(
+                    "已完成",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = habitColor
                 )
             }
         }
@@ -688,35 +738,6 @@ private fun HabitHomeCard(
             weeks = if (isLarge) 10 else 6,
             modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(Modifier.height(if (isLarge) 14.dp else 10.dp))
-
-        // M3 check-in button
-        Button(
-            onClick = onToggle,
-            modifier = if (isLarge) Modifier.fillMaxWidth().height(44.dp) else Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (item.isCompleted)
-                    habitColor.copy(alpha = 0.15f)
-                else
-                    habitColor,
-                contentColor = if (item.isCompleted)
-                    habitColor
-                else
-                    habitOnColor
-            )
-        ) {
-            Icon(
-                imageVector = if (item.isCompleted) Icons.Default.CheckCircle else Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                if (item.isCompleted) "已完成" else "打卡",
-                style = MaterialTheme.typography.labelLarge
-            )
-        }
     }
 }
 

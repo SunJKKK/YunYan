@@ -219,6 +219,9 @@ fun SunJKToolNavHost(
                 onNavigateToLearningRecord = {
                     navController.navigate(Screen.LearningRecordList.route)
                 },
+                onNavigateToLearningStats = {
+                    navController.navigate(Screen.LearningStats.route)
+                },
                 onNavigateToPomodoro = {
                     navController.navigate(Screen.Pomodoro.route)
                 },
@@ -1055,11 +1058,32 @@ fun SunJKToolNavHost(
             popExitTransition = if (animEnabled) backExit else null
         ) {
             com.sunjk.sunjktool.feature.overview.OverviewScreen(
-                viewModel = viewModel(factory = com.sunjk.sunjktool.di.OverviewVMF(logRepository, pomodoroRecordDao, habitRepository, reviewDao, lifeLogRepository, tickTickRepository)),
+                viewModel = viewModel(factory = com.sunjk.sunjktool.di.OverviewVMF(logRepository, pomodoroRecordDao, habitRepository, reviewDao, lifeLogRepository, questionBankRepository, tickTickRepository)),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToLogDetail = { id -> navController.navigate(Screen.LogDetail.createRoute(id)) },
                 onNavigateToReviewList = { navController.navigate(Screen.ReviewList.route) },
-                onNavigateToLifeLogDetail = { id -> navController.navigate(Screen.LifeLogDetail.createRoute(id)) }
+                onNavigateToLifeLogDetail = { id -> navController.navigate(Screen.LifeLogDetail.createRoute(id)) },
+                onNavigateToQuestion = { categoryId, questionId ->
+                    navController.navigate(Screen.QuestionBankDetail.createRoute(categoryId, questionId))
+                }
+            )
+        }
+
+        // ===== 学习统计 (push，从首页热力图进入) =====
+        composable(
+            route = Screen.LearningStats.route,
+            enterTransition = if (animEnabled) forwardEnter else null,
+            exitTransition = if (animEnabled) forwardExit else null,
+            popEnterTransition = if (animEnabled) backEnter else null,
+            popExitTransition = if (animEnabled) backExit else null
+        ) {
+            com.sunjk.sunjktool.feature.stats.LearningStatsScreen(
+                viewModel = viewModel(
+                    factory = com.sunjk.sunjktool.di.LearningStatsVMF(
+                        logRepository, pomodoroRecordDao, notebookRepository, questionBankRepository
+                    )
+                ),
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
