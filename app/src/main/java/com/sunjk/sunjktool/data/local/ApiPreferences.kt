@@ -60,6 +60,28 @@ class ApiPreferences(context: Context) {
             .apply()
     }
 
+    // ---- Qwen (通义千问) ----
+    fun getQwenKey(): String = prefs.getString(KEY_QWEN, "") ?: ""
+    fun setQwenKey(key: String) = prefs.edit().putString(KEY_QWEN, key).apply()
+
+    fun getQwenBaseUrl(): String = prefs.getString(KEY_QWEN_BASE_URL, DEFAULT_QWEN_BASE_URL) ?: DEFAULT_QWEN_BASE_URL
+    fun setQwenBaseUrl(url: String) = prefs.edit().putString(KEY_QWEN_BASE_URL, url.trim().trimEnd('/')).apply()
+
+    fun getQwenModel(): String = prefs.getString(KEY_QWEN_MODEL, MODEL_QWEN_FLASH) ?: MODEL_QWEN_FLASH
+    fun setQwenModel(model: String) = prefs.edit().putString(KEY_QWEN_MODEL, model).apply()
+
+    // ---- 各 AI 功能所选模型（存 AiModelOption.id）----
+    fun getAiModelFor(feature: String): String =
+        prefs.getString("ai_model_$feature", AiModelOption.DEEPSEEK_FLASH.id) ?: AiModelOption.DEEPSEEK_FLASH.id
+    fun setAiModelFor(feature: String, optionId: String) =
+        prefs.edit().putString("ai_model_$feature", optionId).apply()
+
+    // ---- 全局默认 AI 模型（各功能执行前选择的初始默认值）----
+    fun getDefaultAiModelOption(): String =
+        prefs.getString(KEY_DEFAULT_AI_MODEL, AiModelOption.DEEPSEEK_FLASH.id) ?: AiModelOption.DEEPSEEK_FLASH.id
+    fun setDefaultAiModelOption(optionId: String) =
+        prefs.edit().putString(KEY_DEFAULT_AI_MODEL, optionId).apply()
+
     // ---- QWeather ----
     fun getQWeatherKey(): String = prefs.getString(KEY_QWEATHER, "") ?: ""
     fun setQWeatherKey(key: String) = prefs.edit().putString(KEY_QWEATHER, key).apply()
@@ -147,6 +169,13 @@ class ApiPreferences(context: Context) {
 
         const val DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
+        const val MODEL_QWEN_FLASH = "qwen3.5-flash"
+        const val DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode"
+        private const val KEY_QWEN = "qwen_key"
+        private const val KEY_QWEN_BASE_URL = "qwen_base_url"
+        private const val KEY_QWEN_MODEL = "qwen_model"
+        private const val KEY_DEFAULT_AI_MODEL = "default_ai_model"
+
 
         const val KEY_TABLET_MODE = "tablet_mode"
         const val KEY_READ_ONLY_SYNC = "read_only_sync"
@@ -162,5 +191,30 @@ class ApiPreferences(context: Context) {
         const val THEME_MODE_SYSTEM = "system"
         const val THEME_MODE_LIGHT = "light"
         const val THEME_MODE_DARK = "dark"
+    }
+}
+
+/** AI 服务商。接口规范一致（OpenAI 兼容 /v1/chat/completions），仅 base_url / api_key / model 不同。 */
+enum class AiProvider(val id: String, val displayName: String) {
+    DEEPSEEK("deepseek", "DeepSeek"),
+    QWEN("qwen", "通义千问")
+}
+
+/** 可选 AI 模型：统一入口，供各 AI 功能在执行前选择。 */
+enum class AiModelOption(
+    val id: String,
+    val provider: AiProvider,
+    val model: String,
+    val label: String,
+    val desc: String
+) {
+    DEEPSEEK_FLASH("deepseek_flash", AiProvider.DEEPSEEK, ApiPreferences.MODEL_V4_FLASH, "V4 Flash", "DeepSeek，速度快、成本低"),
+    DEEPSEEK_PRO("deepseek_pro", AiProvider.DEEPSEEK, ApiPreferences.MODEL_V4_PRO, "V4 Pro", "DeepSeek，能力强、费用较高"),
+    QWEN_FLASH("qwen_flash", AiProvider.QWEN, ApiPreferences.MODEL_QWEN_FLASH, "Qwen 3.5 Flash", "通义千问，响应快");
+
+    companion object {
+        /** 兼容旧存储（纯 model id，如 deepseek-v4-flash）与新存储（option id）。 */
+        fun fromId(raw: String): AiModelOption =
+            entries.firstOrNull { it.id == raw || it.model == raw } ?: DEEPSEEK_FLASH
     }
 }

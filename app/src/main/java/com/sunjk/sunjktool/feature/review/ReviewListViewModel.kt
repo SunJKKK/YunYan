@@ -38,7 +38,7 @@ data class ReviewListUiState(
 
 class ReviewListViewModel(
     private val reviewDao: ReviewStatusDao,
-    private val logDao: LogEntryDao
+    private val logRepository: com.sunjk.sunjktool.domain.repository.LogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReviewListUiState())
@@ -49,7 +49,7 @@ class ReviewListViewModel(
             .atStartOfDay(java.time.ZoneId.systemDefault())
             .toInstant().toEpochMilli()
         viewModelScope.launch {
-            combine(reviewDao.getAll(), logDao.getAllEntries()) { reviews, entries ->
+            combine(reviewDao.getAll(), logRepository.getAllEntries()) { reviews, entries ->
                 val entryMap = entries.associateBy { it.id }
                 // Only show today and future review dates
                 val grouped = reviews
@@ -57,7 +57,7 @@ class ReviewListViewModel(
                     .groupBy { it.reviewDate }.map { (date, list) ->
                     ReviewDay(date = date, items = list.mapNotNull { r ->
                         val e = entryMap[r.logEntryId] ?: return@mapNotNull null
-                        ReviewItem(r.id, e.id, e.title, e.subject, r.isCompleted, r.reviewType)
+                        ReviewItem(r.id, e.id, e.title, e.notebookName, r.isCompleted, r.reviewType)
                     }.sortedBy { it.logEntryId })
                 }.sortedBy { it.date }
                 _uiState.value = ReviewListUiState(isLoading = false, days = grouped)

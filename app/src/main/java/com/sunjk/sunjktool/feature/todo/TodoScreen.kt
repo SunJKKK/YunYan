@@ -76,12 +76,19 @@ fun TodoScreen(
     val context = LocalContext.current
 
     fun openTickTick() {
-        runCatching {
-            context.startActivity(
-                context.packageManager.getLaunchIntentForPackage("cn.ticktick.task")
-                    ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }.onFailure {
+        // 滴答清单国内版与国际版包名不同，依次尝试
+        val launchIntent = listOf("cn.ticktick.task", "com.ticktick.task")
+            .firstNotNullOfOrNull { pkg ->
+                runCatching {
+                    context.packageManager.getLaunchIntentForPackage(pkg)
+                }.getOrNull()
+            }?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (launchIntent != null) {
+            runCatching { context.startActivity(launchIntent) }
+                .onFailure {
+                    android.widget.Toast.makeText(context, "无法启动滴答清单", android.widget.Toast.LENGTH_SHORT).show()
+                }
+        } else {
             android.widget.Toast.makeText(context, "未找到滴答清单应用", android.widget.Toast.LENGTH_SHORT).show()
         }
     }

@@ -472,9 +472,9 @@ private fun TodayLogsModule(entries: List<LogEntry>) {
                             overflow = TextOverflow.Ellipsis,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (entry.subject.isNotBlank()) {
+                        if (entry.notebookName.isNotBlank()) {
                             Text(
-                                text = entry.subject,
+                                text = entry.notebookName,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

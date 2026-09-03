@@ -20,6 +20,7 @@ data class LogEntry(
     val attachmentPaths: List<String> = emptyList(),
     val attachmentText: String = "",
     val notebookId: Long? = null,
+    val notebookName: String = "",
     val createdDate: LocalDateTime,
     val updatedDate: LocalDateTime
 ) {

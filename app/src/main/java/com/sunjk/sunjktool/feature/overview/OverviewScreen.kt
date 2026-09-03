@@ -203,8 +203,8 @@ fun OverviewScreen(
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (entry.subject.isNotBlank()) {
-                                    Text(entry.subject, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                if (entry.notebookName.isNotBlank()) {
+                                    Text(entry.notebookName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                 }
                                 Text(entry.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

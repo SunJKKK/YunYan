@@ -510,7 +510,7 @@ fun SunJKToolNavHost(
         // ===== 复盘列表 (push) =====
         composable(route = Screen.ReviewList.route, enterTransition = forwardEnter, exitTransition = forwardExit, popEnterTransition = backEnter, popExitTransition = backExit) {
             com.sunjk.sunjktool.feature.review.ReviewListScreen(
-                viewModel = viewModel(factory = ReviewListVMF(reviewDao, logDao)),
+                viewModel = viewModel(factory = ReviewListVMF(reviewDao, logRepository)),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { logId -> navController.navigate(Screen.LogDetail.createRoute(logId)) },
                 onNavigateToHistory = { navController.navigate(Screen.ReviewHistory.route) }
@@ -520,7 +520,7 @@ fun SunJKToolNavHost(
         // ===== 历史复盘 (push) =====
         composable(route = Screen.ReviewHistory.route, enterTransition = forwardEnter, exitTransition = forwardExit, popEnterTransition = backEnter, popExitTransition = backExit) {
             com.sunjk.sunjktool.feature.review.ReviewHistoryScreen(
-                viewModel = viewModel(factory = ReviewHistoryVMF(reviewDao, logDao)),
+                viewModel = viewModel(factory = ReviewHistoryVMF(reviewDao, logRepository)),
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { logId -> navController.navigate(Screen.LogDetail.createRoute(logId)) }
             )

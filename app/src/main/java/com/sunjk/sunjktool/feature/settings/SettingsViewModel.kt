@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunjk.sunjktool.data.local.ApiPreferences
+import com.sunjk.sunjktool.data.local.AiModelOption
 import com.sunjk.sunjktool.data.local.PromptDefaults
 import com.sunjk.sunjktool.data.local.PromptKeys
 import com.sunjk.sunjktool.data.sync.SyncEngine
@@ -28,6 +29,13 @@ data class SettingsUiState(
     val deepSeekModel: String = ApiPreferences.MODEL_V4_FLASH,
     // DeepSeek API base URL
     val deepSeekBaseUrl: String = ApiPreferences.DEFAULT_DEEPSEEK_BASE_URL,
+
+    // Qwen (通义千问) API
+    val qwenKey: String = "",
+    val qwenBaseUrl: String = ApiPreferences.DEFAULT_QWEN_BASE_URL,
+    val qwenModel: String = ApiPreferences.MODEL_QWEN_FLASH,
+    // 全局默认 AI 模型（存 AiModelOption.id）
+    val defaultAiModel: String = AiModelOption.DEEPSEEK_FLASH.id,
 
 
     // WebDAV
@@ -97,6 +105,10 @@ class SettingsViewModel(
             deepSeekKey = apiPreferences.getDeepSeekKey(),
             deepSeekModel = apiPreferences.getDeepSeekModel(),
             deepSeekBaseUrl = apiPreferences.getDeepSeekBaseUrl(),
+            qwenKey = apiPreferences.getQwenKey(),
+            qwenBaseUrl = apiPreferences.getQwenBaseUrl(),
+            qwenModel = apiPreferences.getQwenModel(),
+            defaultAiModel = apiPreferences.getDefaultAiModelOption(),
             qweatherKey = apiPreferences.getQWeatherKey(),
             webDavUrl = syncPrefs.getWebDavUrl().ifBlank { "https://dav.jianguoyun.com/dav/" },
             username = syncPrefs.getUsername(),
@@ -134,11 +146,31 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(deepSeekBaseUrl = url)
     }
 
+    fun updateQwenKey(key: String) {
+        _uiState.value = _uiState.value.copy(qwenKey = key)
+    }
+
+    fun updateQwenBaseUrl(url: String) {
+        _uiState.value = _uiState.value.copy(qwenBaseUrl = url)
+    }
+
+    fun updateQwenModel(model: String) {
+        _uiState.value = _uiState.value.copy(qwenModel = model)
+    }
+
+    fun setDefaultAiModel(optionId: String) {
+        apiPreferences.setDefaultAiModelOption(optionId)
+        _uiState.value = _uiState.value.copy(defaultAiModel = optionId)
+    }
+
     fun saveApiKeys() {
         val s = _uiState.value
         apiPreferences.setDeepSeekKey(s.deepSeekKey)
         apiPreferences.setQWeatherKey(s.qweatherKey)
         apiPreferences.setDeepSeekBaseUrl(s.deepSeekBaseUrl)
+        apiPreferences.setQwenKey(s.qwenKey)
+        apiPreferences.setQwenBaseUrl(s.qwenBaseUrl)
+        apiPreferences.setQwenModel(s.qwenModel)
         _uiState.value = _uiState.value.copy(apiKeySaveResult = "API 密钥已保存")
     }
 

@@ -261,18 +261,6 @@ fun LogEditScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Subject (optional)
-                TextField(
-                    value = uiState.subject,
-                    onValueChange = viewModel::updateSubject,
-                    label = { Text("科目") },
-                    placeholder = { Text("例如: 数学, Kotlin, 英语") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // Description (optional)
                 TextField(
                     value = uiState.description,

@@ -41,6 +41,9 @@ class PomodoroManager(private val appContext: Context) {
 
     private var tickCount = 0
 
+    /** 当前阶段（专注/休息）的结束墙钟时间戳（毫秒）。用于后台节流时仍能按真实时间推进进度。 */
+    private var periodEndWallTime: Long = 0L
+
     /**
      * 兼容类型读取偏好值：某些历史版本把 Boolean / Int / Long 值以字符串形式写入，
      * 直接调用 [SharedPreferences.getBoolean]/[SharedPreferences.getInt]/[SharedPreferences.getLong]
@@ -154,6 +157,9 @@ class PomodoroManager(private val appContext: Context) {
             completedCount = effectiveCount, lastCompletedDate = effectiveDate,
         )
         registerReceiver()
+        // 进程死亡期间流逝的时间按墙钟锚点恢复，保证前后台/重进后进度一致
+        periodEndWallTime = if (snapshotTime > 0L) snapshotTime + remainingSecs * 1000L
+                            else System.currentTimeMillis() + adjustedRemaining * 1000L
         startForegroundService()
         startTimer()
     }
@@ -200,6 +206,7 @@ class PomodoroManager(private val appContext: Context) {
         )
 
         saveState(_state.value)
+        periodEndWallTime = System.currentTimeMillis() + totalSecs * 1000L
         startForegroundService()
         registerReceiver()
         startTimer()
@@ -231,6 +238,7 @@ class PomodoroManager(private val appContext: Context) {
         val s = _state.value
         if (!s.isRunning) return
         timerJob?.cancel()
+        periodEndWallTime = 0L
         val newState = s.copy(isRunning = false)
         _state.value = newState
         saveState(newState)
@@ -243,6 +251,7 @@ class PomodoroManager(private val appContext: Context) {
         val newState = s.copy(isRunning = true)
         _state.value = newState
         saveState(newState)
+        periodEndWallTime = System.currentTimeMillis() + newState.remainingSecs * 1000L
         startTimer()
     }
 
@@ -271,6 +280,7 @@ class PomodoroManager(private val appContext: Context) {
         )
         _state.value = newState
         saveState(newState)
+        periodEndWallTime = 0L
         nm.cancel(NotificationHelper.NOTIFICATION_TIMER_ID)
         if (keepProgress) {
             onSyncRequested?.invoke()
@@ -295,6 +305,7 @@ class PomodoroManager(private val appContext: Context) {
         )
         _state.value = newState
         saveState(newState)
+        periodEndWallTime = 0L
         nm.cancel(NotificationHelper.NOTIFICATION_TIMER_ID)
         upsertTodayRecord(newTotal, s.completedCount)
     }
@@ -307,7 +318,10 @@ class PomodoroManager(private val appContext: Context) {
                 delay(1000)
                 val s = _state.value
                 if (!s.isRunning) return@launch
-                val newRemaining = s.remainingSecs - 1
+                // 基于墙钟锚点计算剩余时间，后台被节流时进度仍与真实时间一致
+                val newRemaining = if (periodEndWallTime > 0L)
+                    ((periodEndWallTime - System.currentTimeMillis() + 999) / 1000).toInt()
+                else s.remainingSecs - 1
                 if (newRemaining <= 0) {
                     onTimerFinished()
                     return@launch
@@ -324,6 +338,33 @@ class PomodoroManager(private val appContext: Context) {
 
     private fun onTimerFinished() {
         val s = _state.value
+
+        // 休息阶段结束：不计入专注时长、不增加完成数、不再进入新一轮休息
+        if (s.phase == PomodoroPhase.BREAK) {
+            timerJob?.cancel()
+            periodEndWallTime = 0L
+            stopForegroundService()
+            unregisterReceiver()
+            nm.notify(
+                NotificationHelper.NOTIFICATION_DONE_ID,
+                NotificationHelper.buildBreakEndNotification(appContext, s.breakMinutes)
+            )
+            val newState = PomodoroState(
+                phase = PomodoroPhase.IDLE,
+                workMinutes = s.workMinutes,
+                breakMinutes = s.breakMinutes,
+                skipBreak = s.skipBreak,
+                totalFocusSecs = s.totalFocusSecs,
+                completedCount = s.completedCount,
+                lastCompletedDate = s.lastCompletedDate,
+            )
+            _state.value = newState
+            saveState(newState)
+            nm.cancel(NotificationHelper.NOTIFICATION_TIMER_ID)
+            onSyncRequested?.invoke()
+            return
+        }
+
         val completedSecs = s.totalSecs
         val newTotal = s.totalFocusSecs + completedSecs
         val newCount = s.completedCount + 1
@@ -365,6 +406,7 @@ class PomodoroManager(private val appContext: Context) {
             )
             _state.value = newState
             saveState(newState)
+            periodEndWallTime = System.currentTimeMillis() + breakSecs * 1000L
             startTimer()
             onSyncRequested?.invoke()
             upsertTodayRecord(newTotal, newCount)

@@ -56,9 +56,6 @@ class AppContainer(context: Context) {
                 isLenient = true
             })
         }
-        engine {
-            socketTimeout = 300_000
-        }
     }
 
     // OkHttp client for WebDAV (supports non-standard HTTP methods: PROPFIND, MKCOL)
@@ -74,7 +71,7 @@ class AppContainer(context: Context) {
     private val tickTickApi = TickTickApi(httpClient, apiPreferences)
 
     val locationHelper = LocationHelper(context)
-    val logRepository: LogRepository = LogRepositoryImpl(database.logEntryDao())
+    val logRepository: LogRepository = LogRepositoryImpl(database.logEntryDao(), database.notebookDao())
     val countdownRepository: CountdownRepository = CountdownRepositoryImpl(database.countdownDao())
     val homeModuleRepository: HomeModuleRepository = HomeModuleRepositoryImpl(database.homeModuleDao())
     val weatherRepository: WeatherRepository = WeatherRepositoryImpl(qWeatherApi, locationHelper)

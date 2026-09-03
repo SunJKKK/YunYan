@@ -61,20 +61,20 @@ class SyncSettingsVMF(
 
 class ReviewListVMF(
     private val reviewDao: ReviewStatusDao,
-    private val logDao: LogEntryDao
+    private val logRepository: com.sunjk.sunjktool.domain.repository.LogRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        ReviewListViewModel(reviewDao, logDao) as T
+        ReviewListViewModel(reviewDao, logRepository) as T
 }
 
 class ReviewHistoryVMF(
     private val reviewDao: ReviewStatusDao,
-    private val logDao: LogEntryDao
+    private val logRepository: com.sunjk.sunjktool.domain.repository.LogRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        ReviewHistoryViewModel(reviewDao, logDao) as T
+        ReviewHistoryViewModel(reviewDao, logRepository) as T
 }
 
 class HabitListVMF(private val repo: HabitRepository) : ViewModelProvider.Factory {

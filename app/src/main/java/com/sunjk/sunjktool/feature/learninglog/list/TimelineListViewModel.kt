@@ -55,7 +55,7 @@ class TimelineListViewModel(
         val filtered = if (query.isBlank()) entries
         else entries.filter { entry ->
             entry.title.contains(query, ignoreCase = true) ||
-            entry.subject.contains(query, ignoreCase = true) ||
+            entry.notebookName.contains(query, ignoreCase = true) ||
             entry.description.contains(query, ignoreCase = true) ||
             entry.aiSummary.contains(query, ignoreCase = true)
         }

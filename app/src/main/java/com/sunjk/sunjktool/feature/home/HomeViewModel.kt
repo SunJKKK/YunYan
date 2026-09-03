@@ -189,7 +189,7 @@ class HomeViewModel(
                 val entryMap = entries.associateBy { it.id }
                 val items = todayItems.mapNotNull { r ->
                     val e = entryMap[r.logEntryId] ?: return@mapNotNull null
-                    HomeReviewItem(r.id, r.logEntryId, e.title, e.subject, r.isCompleted, r.reviewType)
+                    HomeReviewItem(r.id, r.logEntryId, e.title, e.notebookName, r.isCompleted, r.reviewType)
                 }
                 _uiState.value = _uiState.value.copy(reviewItems = items)
             }

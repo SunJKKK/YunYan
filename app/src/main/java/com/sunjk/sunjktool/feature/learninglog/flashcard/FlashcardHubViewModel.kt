@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunjk.sunjktool.data.model.FlashcardSetJson
+import com.sunjk.sunjktool.data.local.AiModelOption
 import com.sunjk.sunjktool.data.local.ApiPreferences
 import com.sunjk.sunjktool.data.local.PromptKeys
 import com.sunjk.sunjktool.data.remote.DeepSeekApi
@@ -24,7 +25,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 
 data class SessionSummary(
@@ -66,7 +66,8 @@ data class FlashcardHubUiState(
     val enableMemory: Boolean = true,
     val includeOcr: Boolean = true,
     val includeDescription: Boolean = true,
-    val includeAiSummary: Boolean = true
+    val includeAiSummary: Boolean = true,
+    val aiModel: String = AiModelOption.DEEPSEEK_FLASH.id
 )
 
 class FlashcardHubViewModel(
@@ -95,7 +96,7 @@ class FlashcardHubViewModel(
                     it.copy(
                         isGenerating = task?.status == AiTaskStatus.RUNNING,
                         generationProgress = task?.phase ?: "",
-                        generationPhase = if (task?.status == AiTaskStatus.RUNNING) task.phase else it.generationPhase
+                        generationPhase = if (task?.status == AiTaskStatus.RUNNING) task.phaseKey.ifBlank { task.phase } else it.generationPhase
                     )
                 }
             }
@@ -137,7 +138,15 @@ class FlashcardHubViewModel(
         }
 
     fun showStyleDialog() {
-        _uiState.update { it.copy(showStyleDialog = true, customStyle = "", customCardCount = "", useCustomCount = false) }
+        _uiState.update {
+            it.copy(
+                showStyleDialog = true,
+                customStyle = "",
+                customCardCount = "",
+                useCustomCount = false,
+                aiModel = apiPreferences.getAiModelFor("flashcard_hub")
+            )
+        }
     }
 
     fun dismissStyleDialog() {
@@ -164,9 +173,15 @@ class FlashcardHubViewModel(
     fun toggleIncludeDescription() { _uiState.update { it.copy(includeDescription = !it.includeDescription) } }
     fun toggleIncludeAiSummary() { _uiState.update { it.copy(includeAiSummary = !it.includeAiSummary) } }
 
+    fun setAiModel(option: AiModelOption) {
+        apiPreferences.setAiModelFor("flashcard_hub", option.id)
+        _uiState.update { it.copy(aiModel = option.id) }
+    }
+
     fun generateFlashcards(context: Context, style: String, cardCount: Int = 0) {
+        val aiOption = AiModelOption.fromId(_uiState.value.aiModel)
         AiGenerationManager.start(AiTaskType.FLASHCARDS, logEntryId, "AI 闪卡")
-        AiGenerationManager.updatePhase(AiTaskType.FLASHCARDS, logEntryId, "正在识别图片文字…")
+        AiGenerationManager.updatePhase(AiTaskType.FLASHCARDS, logEntryId, "正在识别图片文字…", phaseKey = "ocr")
         AiGenerationManager.scope.launch {
             _uiState.update { it.copy(showStyleDialog = false, isGenerating = true, generationProgress = "正在识别图片文字…", generationPhase = "ocr") }
             try {
@@ -188,11 +203,14 @@ class FlashcardHubViewModel(
                 if (isRetrievalAugmented) {
                     // Stage 1: Gap analysis
                     _uiState.update { it.copy(generationProgress = "正在分析知识缺口…", generationPhase = "gap") }
-                    val gapResult = withTimeout(300000) {
+                    AiGenerationManager.updatePhase(AiTaskType.FLASHCARDS, logEntryId, "正在分析知识缺口…", progress = 0.35f, phaseKey = "gap")
+                    val gapResult = run {
                         deepSeekApi.chatCompletion(
                             systemPrompt = apiPreferences.getPrompt(PromptKeys.GAP_ANALYSIS) ?: "你是学习分析专家。仔细分析用户的学习材料，找出其中的知识缺口和可以深入扩展的方向。\n\n输出纯 JSON，格式：{\"gaps\":[{\"topic\":\"知识点名\",\"description\":\"缺口说明\",\"importance\":\"high|medium|low\"}],\"extensions\":[{\"topic\":\"知识点名\",\"direction\":\"可扩展方向\"}],\"missingDetails\":[\"缺失的细节1\",\"缺失的细节2\"]}\n\n分析要点：\n1. 是否有前置知识未覆盖？\n2. 是否有重要的关联概念未提及？\n3. 是否有容易混淆的相似概念需要区分？\n4. 是否可以深入挖掘某个知识点的原理或应用？\n5. 是否有实际案例或练习题可以补充？",
                             userMessage = "请分析以下学习材料中的知识缺口：\n\n$userMessage",
-                            temperature = 0.4
+                            temperature = 0.4,
+                            modelOverride = aiOption.model,
+                            provider = aiOption.provider
                         )
                     }
                     val gapText = gapResult.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -200,6 +218,7 @@ class FlashcardHubViewModel(
 
                     // Stage 2: Knowledge retrieval (using model internal knowledge)
                     _uiState.update { it.copy(generationProgress = "正在检索补充知识…", generationPhase = "retrieval") }
+                    AiGenerationManager.updatePhase(AiTaskType.FLASHCARDS, logEntryId, "正在检索补充知识…", progress = 0.5f, phaseKey = "retrieval")
                     val gapSummary = buildString {
                         append("知识缺口：\n")
                         gapAnalysis.gaps.forEach { g -> append("- ${g.topic}（重要性：${g.importance}）：${g.description}\n") }
@@ -212,11 +231,13 @@ class FlashcardHubViewModel(
                             gapAnalysis.missingDetails.forEach { d -> append("- $d\n") }
                         }
                     }
-                    val knowledgeResult = withTimeout(300000) {
+                    val knowledgeResult = run {
                         deepSeekApi.chatCompletion(
                             systemPrompt = apiPreferences.getPrompt(PromptKeys.KNOWLEDGE_RETRIEVAL) ?: "你是知识检索专家。基于缺口分析结果，为每个缺口和扩展方向提供补充知识。请使用你的训练知识来填补这些空白。\n\n输出纯 JSON，格式：{\"supplements\":[{\"topic\":\"知识点名\",\"content\":\"补充的核心知识内容\",\"keyPoints\":[\"要点1\",\"要点2\"]}]}\n\n要求：\n1. 内容准确、有深度，不仅仅是表面定义\n2. 覆盖缺口分析中的所有重要缺口\n3. 对每个扩展方向提供有实质性内容的知识补充",
                             userMessage = "请根据以下缺口分析，提供补充知识：\n\n$gapSummary",
-                            temperature = 0.3
+                            temperature = 0.3,
+                            modelOverride = aiOption.model,
+                            provider = aiOption.provider
                         )
                     }
                     val knowledgeText = knowledgeResult.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -236,6 +257,7 @@ class FlashcardHubViewModel(
 
                 // Stage 3: Flashcard design (or single-stage for non-retrieval styles)
                 _uiState.update { it.copy(generationProgress = "正在设计闪卡…", generationPhase = "design") }
+                AiGenerationManager.updatePhase(AiTaskType.FLASHCARDS, logEntryId, "正在设计闪卡…", progress = 0.8f, phaseKey = "design")
 
                 val styleInstruction = when (style.trim()) {
                     "核心" -> "聚焦于材料中最核心、最重要的知识点，每道题都应直接考察关键概念。"
@@ -248,11 +270,13 @@ class FlashcardHubViewModel(
                 }
                 val retrievalInstruction = if (isRetrievalAugmented) "请结合上述补充知识，在闪卡中覆盖原材料的核心知识和补充的新知识点，确保知识体系的完整性。" else ""
 
-                val response = withTimeout(300000) {
+                val response = run {
                     deepSeekApi.chatCompletion(
                         systemPrompt = apiPreferences.getPrompt(PromptKeys.FLASHCARD) ?: "你是一个学习助教，擅长将学习材料转化为有趣的闪卡。请根据提供的OCR识别文字、用户描述和科目信息，生成一套闪卡。\n\n要求：\n1. 输出纯 JSON，不要任何前缀、后缀或 markdown 标记。直接输出 JSON 对象。\n2. ${countInstruction}\n3. ${buildTypeInstruction(_uiState.value.enableTrueFalse, _uiState.value.enableSingleChoice, _uiState.value.enableMultiChoice, _uiState.value.enableMemory)}\n4. JSON 格式：{\"cards\":[{\"type\":\"true_false\",\"question\":\"...\",\"answer\":true,\"explanation\":\"...\",\"knowledgePoint\":\"知识点\"},{\"type\":\"single_choice\",\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":0,\"explanation\":\"...\",\"knowledgePoint\":\"知识点\"},{\"type\":\"multi_choice\",\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\",\"E\"],\"answers\":[0,2],\"explanation\":\"...\",\"knowledgePoint\":\"知识点名\"},{\"type\":\"memory\",\"front\":\"...\",\"back\":\"...\",\"explanation\":\"...\",\"knowledgePoint\":\"知识点名\"}]}\n5. 题目覆盖核心知识点，选项应有干扰性但不过分相似，explanation 必须条理清晰。\n6. 每张卡片必须包含 \"knowledgePoint\" 字段，值为该题考查的核心知识点名称（3-8个字，如\"协程取消\"\"Flow冷热流\"）。\n7. ${styleInstruction}\n8. ${retrievalInstruction}",
                         userMessage = userMessage + supplementaryContext,
-                        temperature = 0.3
+                        temperature = 0.3,
+                        modelOverride = aiOption.model,
+                        provider = aiOption.provider
                     )
                 }
                 val jsonText = response.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -345,7 +369,7 @@ class FlashcardHubViewModel(
         }
         if (includeDescription && entry.description.isNotBlank())
             append("用户描述：${entry.description}\n")
-        if (entry.subject.isNotBlank()) append("科目：${entry.subject}\n")
+        if (entry.notebookName.isNotBlank()) append("分类：${entry.notebookName}\n")
         if (includeAiSummary && entry.aiSummary.isNotBlank())
             append("AI总结：${entry.aiSummary}\n")
         append("标题：${entry.title}\n")

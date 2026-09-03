@@ -49,9 +49,9 @@ fun LogEntryCard(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             // Subject tag
-            if (entry.subject.isNotBlank()) {
+            if (entry.notebookName.isNotBlank()) {
                 Text(
-                    text = entry.subject,
+                    text = entry.notebookName,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -141,7 +141,7 @@ private fun LogEntryCardPreview() {
     com.sunjk.sunjktool.ui.theme.SunJKToolTheme {
         val sample = LogEntry(
             id = 1,
-            subject = "Kotlin",
+            notebookName = "Kotlin",
             title = "协程与 Flow 学习笔记",
             timeSpent = 90,
             imagePaths = emptyList(),

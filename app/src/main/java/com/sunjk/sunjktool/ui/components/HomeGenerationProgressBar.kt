@@ -80,8 +80,9 @@ private fun GenerationTaskCard(task: GenerationTask, onClick: () -> Unit) {
         ) {
             if (task.status == AiTaskStatus.RUNNING) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.5.dp,
+                    progress = { task.progress.takeIf { it > 0f && it < 1f } ?: -1f },
                     color = MaterialTheme.colorScheme.primary
                 )
             } else {

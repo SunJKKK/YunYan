@@ -141,8 +141,10 @@ import coil.request.ImageRequest
 import com.sunjk.sunjktool.domain.model.LogEntry
 import com.sunjk.sunjktool.feature.learninglog.edit.CropScreen
 import com.sunjk.sunjktool.ui.components.ConfirmDialog
+import com.sunjk.sunjktool.data.local.AiModelOption
 import com.sunjk.sunjktool.data.local.ApiPreferences
 import com.sunjk.sunjktool.ui.components.EmptyState
+import com.sunjk.sunjktool.ui.components.AiModelSelector
 import com.sunjk.sunjktool.ui.components.LoadingIndicator
 import com.sunjk.sunjktool.util.formatDateTime
 import com.sunjk.sunjktool.util.MarkdownOutlineParser
@@ -661,91 +663,119 @@ private fun SummaryTab(
     // Mode selection dialog — unified with model selection
     if (uiState.showSummaryModeDialog) {
         val isMultiAgent = uiState.summaryGenerationMode == "multi_agent"
+        val modeDesc = when (uiState.summaryGenerationMode) {
+            "rag" -> "先分析知识缺口并补充检索，再生成总结"
+            "multi_agent" -> "分块总结各主题后整合，适合超长内容"
+            else -> "直接生成，适合常规内容"
+        }
         AlertDialog(
             onDismissRequest = { viewModel.dismissSummaryModeDialog() },
+            icon = {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
             title = { Text("生成 AI 总结") },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
-                    // Mode selection — SegmentedButton style
-                    Text("生成模式", style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    // ── 生成模式 ──
+                    Text("生成模式", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(4.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         listOf(
                             Triple("standard", "标准", "直接生成，适合常规内容"),
                             Triple("rag", "检索增强", "先补知识再总结"),
                             Triple("multi_agent", "多Agent", "分块→总结→整合")
-                        ).forEach { (mode, label, desc) ->
-                            FilterChip(
+                        ).forEachIndexed { index, (mode, label, _) ->
+                            SegmentedButton(
                                 selected = uiState.summaryGenerationMode == mode,
                                 onClick = { viewModel.setSummaryGenerationMode(mode) },
-                                modifier = Modifier.weight(1f),
-                                label = {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(label, style = MaterialTheme.typography.labelMedium)
-                                        Text(desc, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            )
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                            ) {
+                                Text(label, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        modeDesc,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                    // Chunk strategy — only for multi-agent
+                    // ── 分块策略（仅多Agent）──
                     if (isMultiAgent) {
                         Spacer(Modifier.height(12.dp))
                         HorizontalDivider()
                         Spacer(Modifier.height(8.dp))
-                        Text("分块策略", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        Text("分块策略", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.height(4.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                             listOf(
                                 Triple("chapter", "按章", "遵循原文章节大块切分"),
                                 Triple("section", "按节", "按小节切分"),
-                                Triple("auto", "自动", "AI自行判断粒度")
-                            ).forEach { (strategy, label, desc) ->
-                                FilterChip(
+                                Triple("auto", "自动", "AI 自行判断粒度")
+                            ).forEachIndexed { index, (strategy, label, _) ->
+                                SegmentedButton(
                                     selected = uiState.summaryChunkStrategy == strategy,
                                     onClick = { viewModel.setSummaryChunkStrategy(strategy) },
-                                    modifier = Modifier.weight(1f),
-                                    label = {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(label, style = MaterialTheme.typography.labelMedium)
-                                            Text(desc, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                )
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                                ) {
+                                    Text(label, style = MaterialTheme.typography.labelMedium)
+                                }
                             }
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "多Agent 模式下的切块粒度",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     Spacer(Modifier.height(12.dp))
                     HorizontalDivider()
                     Spacer(Modifier.height(8.dp))
 
-                    // Model selection — SegmentedButton style
+                    // ── 模型选择 ──
                     if (isMultiAgent) {
-                        Text("预处理模型", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.height(4.dp))
-                        ModelToggle(uiState.summaryPreprocessModel) { viewModel.setSummaryPreprocessModel(it) }
-                        Spacer(Modifier.height(8.dp))
-                        Text("总结模型", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.height(4.dp))
-                        ModelToggle(uiState.summaryAgentModel) { viewModel.setSummaryAgentModel(it) }
-                        Spacer(Modifier.height(8.dp))
-                        Text("整合模型", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.height(4.dp))
-                        ModelToggle(uiState.summaryIntegrateModel) { viewModel.setSummaryIntegrateModel(it) }
+                        ModelSection(
+                            title = "预处理模型",
+                            selected = uiState.summaryPreprocessModel,
+                            onSelect = viewModel::setSummaryPreprocessModel,
+                            hint = "读取全文，输出主题区间并归并"
+                        )
+                        ModelSection(
+                            title = "总结模型",
+                            selected = uiState.summaryAgentModel,
+                            onSelect = viewModel::setSummaryAgentModel,
+                            hint = "逐主题生成分段总结"
+                        )
+                        ModelSection(
+                            title = "整合模型",
+                            selected = uiState.summaryIntegrateModel,
+                            onSelect = viewModel::setSummaryIntegrateModel,
+                            hint = "合并为主题完整总结"
+                        )
                     } else {
-                        Text("总结模型", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.height(4.dp))
-                        ModelToggle(uiState.summaryAgentModel) { viewModel.setSummaryAgentModel(it) }
+                        ModelSection(
+                            title = "总结模型",
+                            selected = uiState.summaryAgentModel,
+                            onSelect = viewModel::setSummaryAgentModel,
+                            hint = "负责生成最终总结"
+                        )
+                        if (uiState.summaryGenerationMode == "rag") {
+                            ModelSection(
+                                title = "检索模型",
+                                selected = uiState.summaryRetrievalModel,
+                                onSelect = viewModel::setSummaryRetrievalModel,
+                                hint = "选 Qwen 将联网搜索补充知识"
+                            )
+                        }
                     }
                 }
             },
@@ -803,13 +833,16 @@ private fun SummaryTab(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
                     val isRAG = uiState.summaryRetrievalAugmented
-                    val isMulti = uiState.summaryGenerationPhase in listOf("preprocess", "topic_summary", "integrate")
+                    val isMulti = uiState.summaryGenerationMode == "multi_agent" && uiState.summaryGenerationPhase in listOf("ocr", "chunking", "preprocess", "topic_summary", "integrate")
                     if (isMulti) {
-                        // Multi-agent steps
-                        val phasesAfter = listOf("topic_summary", "integrate")
+                        // Multi-agent steps: ocr → chunking → preprocess → topic_summary → integrate
+                        val phasesAfterOcr = listOf("chunking", "preprocess", "topic_summary", "integrate")
+                        val phasesAfterChunk = listOf("topic_summary", "integrate")
+                        val phasesAfterPre = listOf("topic_summary", "integrate")
                         val phasesAfter2 = listOf("integrate")
-                        SummaryStepRow("图片文字识别", if (uiState.summaryGenerationPhase in phasesAfter) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "ocr") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
-                        SummaryStepRow("预处理分块", if (uiState.summaryGenerationPhase in phasesAfter) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "preprocess") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
+                        SummaryStepRow("图片文字识别", if (uiState.summaryGenerationPhase in phasesAfterOcr) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "ocr") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
+                        SummaryStepRow("本地切分单元", if (uiState.summaryGenerationPhase in phasesAfterChunk) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "chunking") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
+                        SummaryStepRow("AI 主题归并", if (uiState.summaryGenerationPhase in phasesAfterPre) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "preprocess") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
                         val topicLabel = if (uiState.summaryMultiAgentTotal > 0) "主题总结 ${uiState.summaryMultiAgentCurrent}/${uiState.summaryMultiAgentTotal}" else "主题总结"
                         SummaryStepRow(topicLabel, if (uiState.summaryGenerationPhase in phasesAfter2) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "topic_summary") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
                         SummaryStepRow("整合生成", if (uiState.summaryGenerationPhase == "idle" && !uiState.isGeneratingSummary) SummaryStepState.DONE else if (uiState.summaryGenerationPhase == "integrate") SummaryStepState.IN_PROGRESS else SummaryStepState.PENDING)
@@ -1598,6 +1631,13 @@ private fun SelfCheckTab(uiState: LogDetailUiState, viewModel: LogDetailViewMode
                 )
                 // Footer: regenerate
                 Spacer(Modifier.height(16.dp))
+                Text("生成模型", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                AiModelSelector(
+                    selected = AiModelOption.fromId(uiState.selfCheckModel),
+                    onSelect = viewModel::setSelfCheckModel
+                )
+                Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = { showRegenerateDialog = true },
                     modifier = Modifier.fillMaxWidth()
@@ -1636,6 +1676,13 @@ private fun SelfCheckTab(uiState: LogDetailUiState, viewModel: LogDetailViewMode
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         Spacer(Modifier.height(16.dp))
+                        Text("生成模型", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        AiModelSelector(
+                            selected = AiModelOption.fromId(uiState.selfCheckModel),
+                            onSelect = viewModel::setSelfCheckModel
+                        )
+                        Spacer(Modifier.height(12.dp))
                         Button(onClick = { viewModel.generateSelfCheck(context) },
                             shape = MaterialTheme.shapes.medium) {
                             Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
@@ -1710,17 +1757,29 @@ private fun formatTimeSpent(minutes: Int): String {
 }
 
 @Composable
-private fun ModelToggle(selectedModel: String, onSelect: (String) -> Unit) {
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        SegmentedButton(
-            selected = selectedModel == ApiPreferences.MODEL_V4_FLASH,
-            onClick = { onSelect(ApiPreferences.MODEL_V4_FLASH) },
-            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-        ) { Text("V4 Flash", style = MaterialTheme.typography.labelMedium) }
-        SegmentedButton(
-            selected = selectedModel == ApiPreferences.MODEL_V4_PRO,
-            onClick = { onSelect(ApiPreferences.MODEL_V4_PRO) },
-            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-        ) { Text("V4 Pro", style = MaterialTheme.typography.labelMedium) }
-    }
+private fun ModelToggle(selectedModel: String, onSelect: (AiModelOption) -> Unit) {
+    AiModelSelector(
+        selected = AiModelOption.fromId(selectedModel),
+        onSelect = onSelect
+    )
+}
+
+/** AI 总结对话框中的模型分组：标题 + 选择器 + 说明 */
+@Composable
+private fun ModelSection(
+    title: String,
+    selected: String,
+    onSelect: (AiModelOption) -> Unit,
+    hint: String
+) {
+    Text(title, style = MaterialTheme.typography.labelLarge)
+    Spacer(Modifier.height(4.dp))
+    ModelToggle(selected, onSelect)
+    Spacer(Modifier.height(2.dp))
+    Text(
+        hint,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(10.dp))
 }

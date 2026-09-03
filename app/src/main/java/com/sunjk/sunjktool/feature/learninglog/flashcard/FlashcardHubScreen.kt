@@ -16,6 +16,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 
+import com.sunjk.sunjktool.data.local.AiModelOption
+import com.sunjk.sunjktool.ui.components.AiModelSelector
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -126,6 +128,13 @@ fun FlashcardHubScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                    Spacer(Modifier.height(16.dp))
+                    Text("生成模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    AiModelSelector(
+                        selected = AiModelOption.fromId(uiState.aiModel),
+                        onSelect = viewModel::setAiModel
+                    )
                     Spacer(Modifier.height(16.dp))
                     Text("生成来源", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))

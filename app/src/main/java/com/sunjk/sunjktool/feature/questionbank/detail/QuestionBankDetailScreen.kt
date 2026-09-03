@@ -99,6 +99,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import com.sunjk.sunjktool.ui.components.ConfirmDialog
 import com.sunjk.sunjktool.ui.components.EmptyState
+import com.sunjk.sunjktool.data.local.AiModelOption
+import com.sunjk.sunjktool.ui.components.AiModelSelector
 import com.sunjk.sunjktool.ui.components.LoadingIndicator
 import com.sunjk.sunjktool.ui.components.MarkdownRenderer
 import com.sunjk.sunjktool.util.ImageUtil
@@ -369,6 +371,17 @@ fun QuestionBankDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 3,
                             maxLines = 10
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "生成模型",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        AiModelSelector(
+                            selected = AiModelOption.fromId(uiState.aiModel),
+                            onSelect = viewModel::setAiModel
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 

@@ -109,7 +109,7 @@ fun TimelineListScreen(
                             onSearch = { },
                             expanded = false,
                             onExpandedChange = { },
-                            placeholder = { Text("搜索标题、科目、描述…") },
+                            placeholder = { Text("搜索标题、分类、描述…") },
                             leadingIcon = {
                                 IconButton(onClick = {
                                     isSearchActive = false
@@ -292,9 +292,9 @@ private fun TimelineEntryCard(
             // Text content row
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    if (entry.subject.isNotBlank()) {
+                    if (entry.notebookName.isNotBlank()) {
                         Text(
-                            text = entry.subject,
+                            text = entry.notebookName,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )

@@ -100,4 +100,20 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     }
+
+    /** 休息阶段结束提醒。 */
+    fun buildBreakEndNotification(context: Context, minutes: Int): android.app.Notification {
+        val openIntent = PendingIntent.getActivity(
+            context, 0, Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(context, CHANNEL_ALERT)
+            .setSmallIcon(R.drawable.ic_timer_notification)
+            .setContentTitle("休息结束")
+            .setContentText("休息了 $minutes 分钟，准备开始新的专注吧 💪")
+            .setContentIntent(openIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+    }
 }

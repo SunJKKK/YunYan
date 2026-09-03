@@ -250,8 +250,8 @@ fun PomodoroScreen(
                         )
                         Slider(
                             value = uiState.workMinutes.toFloat(),
-                            onValueChange = { viewModel.setWorkMinutes((it / 5).toInt() * 5) },
-                            valueRange = 5f..120f, steps = 22,
+                            onValueChange = { viewModel.setWorkMinutes(Math.round(it / 5).toInt() * 5) },
+                            valueRange = 5f..120f, steps = 23, // (120-5)/5=23 档间隔，恰好 5 分钟一档
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -272,7 +272,7 @@ fun PomodoroScreen(
                             )
                             Slider(
                                 value = uiState.breakMinutes.toFloat(),
-                                onValueChange = { viewModel.setBreakMinutes((it / 5).toInt() * 5) },
+                                onValueChange = { viewModel.setBreakMinutes(Math.round(it / 5).toInt() * 5) },
                                 valueRange = 5f..60f, steps = 10,
                                 modifier = Modifier.fillMaxWidth()
                             )

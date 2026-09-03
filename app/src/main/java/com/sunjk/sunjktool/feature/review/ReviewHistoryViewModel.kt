@@ -19,7 +19,7 @@ data class ReviewHistoryUiState(
 
 class ReviewHistoryViewModel(
     private val reviewDao: ReviewStatusDao,
-    private val logDao: LogEntryDao
+    private val logRepository: com.sunjk.sunjktool.domain.repository.LogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReviewHistoryUiState())
@@ -30,7 +30,7 @@ class ReviewHistoryViewModel(
             .atStartOfDay(java.time.ZoneId.systemDefault())
             .toInstant().toEpochMilli()
         viewModelScope.launch {
-            combine(reviewDao.getAll(), logDao.getAllEntries()) { reviews, entries ->
+            combine(reviewDao.getAll(), logRepository.getAllEntries()) { reviews, entries ->
                 val entryMap = entries.associateBy { it.id }
                 // Only show past review dates (before today)
                 val grouped = reviews
@@ -41,7 +41,7 @@ class ReviewHistoryViewModel(
                             date = date,
                             items = list.mapNotNull { r ->
                                 val e = entryMap[r.logEntryId] ?: return@mapNotNull null
-                                ReviewItem(r.id, e.id, e.title, e.subject, r.isCompleted, r.reviewType)
+                                ReviewItem(r.id, e.id, e.title, e.notebookName, r.isCompleted, r.reviewType)
                             }.sortedBy { it.logEntryId }
                         )
                     }

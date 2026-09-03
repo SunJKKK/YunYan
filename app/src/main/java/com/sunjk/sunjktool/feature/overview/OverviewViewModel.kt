@@ -147,7 +147,7 @@ class OverviewViewModel(
                     statusId = r.id,
                     logEntryId = r.logEntryId,
                     title = entry?.title ?: "学习记录",
-                    subject = entry?.subject ?: "",
+                    subject = entry?.notebookName ?: "",
                     reviewType = r.reviewType,
                     isCompleted = r.isCompleted
                 )

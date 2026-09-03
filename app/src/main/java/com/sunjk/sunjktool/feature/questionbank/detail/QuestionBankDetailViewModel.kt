@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sunjk.sunjktool.data.local.AiModelOption
 import com.sunjk.sunjktool.data.local.ApiPreferences
 import com.sunjk.sunjktool.data.local.PromptKeys
 import com.sunjk.sunjktool.data.remote.DeepSeekApi
@@ -30,7 +31,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -76,7 +76,8 @@ data class QuestionBankDetailUiState(
     val isSavingQuestions: Boolean = false,
 
     // 题集一键直达：开启后生成进度改用页面进度卡片，而非生成解析对话框
-    val questionBankAutoSave: Boolean = false
+    val questionBankAutoSave: Boolean = false,
+    val aiModel: String = AiModelOption.DEEPSEEK_FLASH.id
 )
 
 // JSON models for AI responses
@@ -131,7 +132,7 @@ class QuestionBankDetailViewModel(
                     _uiState.update {
                         it.copy(
                             isGeneratingAnalysis = true,
-                            generationPhase = "generation",
+                            generationPhase = task.phaseKey.ifBlank { "generation" },
                             generationProgress = task.phase,
                             questionBankAutoSave = apiPreferences.isQuestionBankAutoSave()
                         )
@@ -226,7 +227,12 @@ class QuestionBankDetailViewModel(
     // ── New Question Form ───────────────────────────────────────────
 
     fun showCreateQuestionForm() {
-        _uiState.update { it.copy(isCreatingQuestion = true) }
+        _uiState.update { it.copy(isCreatingQuestion = true, aiModel = apiPreferences.getAiModelFor("questionbank")) }
+    }
+
+    fun setAiModel(option: AiModelOption) {
+        apiPreferences.setAiModelFor("questionbank", option.id)
+        _uiState.update { it.copy(aiModel = option.id) }
     }
 
     fun dismissCreateQuestionForm() {
@@ -287,7 +293,7 @@ class QuestionBankDetailViewModel(
         }
         val taskTitle = state.category?.name?.let { "题集解析·$it" } ?: "题集解析"
         AiGenerationManager.start(AiTaskType.QUESTION_BANK, categoryId, taskTitle)
-        AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别图片文字…")
+        AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别图片文字…", progress = 0.1f, phaseKey = "ocr")
         AiGenerationManager.scope.launch {
             _uiState.update {
                 it.copy(
@@ -320,12 +326,14 @@ class QuestionBankDetailViewModel(
 
                 // Phase 2: Split questions
                 _uiState.update { it.copy(generationProgress = "正在识别和拆题…", generationPhase = "split") }
-                AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别和拆题…")
-                val splitResult = withTimeout(300000) {
+                AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在识别和拆题…", progress = 0.2f, phaseKey = "split")
+                val splitResult = run {
                     deepSeekApi.chatCompletion(
                         systemPrompt = apiPreferences.getPrompt(PromptKeys.QUESTION_SPLIT) ?: "你是一位题目识别专家。用户提供了一段文本，其中可能包含多道题目。请识别出每道独立的题目，并将它们拆分出来。\n\n规则：\n1. 按题号（如 1. / ① / (1) / 一、等）、空行分隔、语义边界来识别题目\n2. 合并跨页或跨段的同一道题\n3. 忽略非题目的杂文（如页码、水印、无关说明）\n4. 保留每道题的完整题干文本\n5. 如果文本中只有一道题，也正常拆分\n\n输出纯 JSON，格式：{\"questions\":[{\"index\":0,\"content\":\"题干内容…\"},{\"index\":1,\"content\":\"题干内容…\"}]}",
                         userMessage = "请识别并拆分以下文本中的题目：\n\n$fullText",
-                        temperature = 0.3
+                        temperature = 0.3,
+                        modelOverride = AiModelOption.fromId(_uiState.value.aiModel).model,
+                        provider = AiModelOption.fromId(_uiState.value.aiModel).provider
                     )
                 }
                 val splitText = splitResult.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -387,12 +395,13 @@ class QuestionBankDetailViewModel(
         if (AiGenerationManager.task(AiTaskType.QUESTION_BANK, categoryId) == null) {
             AiGenerationManager.start(AiTaskType.QUESTION_BANK, categoryId, taskTitle)
         }
+        AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在检索相关知识…", progress = 0.25f, phaseKey = "retrieval")
 
         AiGenerationManager.scope.launch {
             try {
                 // ── Phase 3: 知识检索（路径匹配 + 章节切分）──
                 _uiState.update { it.copy(generationProgress = "正在分析学习记录大纲…", generationPhase = "retrieval") }
-                AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在分析学习记录大纲…")
+                AiGenerationManager.updatePhase(AiTaskType.QUESTION_BANK, categoryId, "正在分析学习记录大纲…", progress = 0.3f, phaseKey = "retrieval")
 
                 val breadcrumbs = repository.getBreadcrumbs(categoryId)
                 val categoryPath = breadcrumbs.joinToString(" / ") { it.second }
@@ -448,7 +457,7 @@ class QuestionBankDetailViewModel(
                         val idx = commonLinkRefs.size
                         commonLinkRefs.add(SummaryLinkRef(entry.id, h.headingId, h.title))
                         if (idx > 0) append("\n\n")
-                        append("[ref:$idx] 学习记录「${entry.title}」（${entry.subject}）·《${h.title}》：\n${section.body}")
+                        append("[ref:$idx] 学习记录「${entry.title}」（${entry.notebookName}）·《${h.title}》：\n${section.body}")
                     }
                 }
                 val commonSystemPrompt = buildAnalysisSystemPrompt(categoryPath, matchedEntries.isNotEmpty(), commonContext)
@@ -465,7 +474,8 @@ class QuestionBankDetailViewModel(
                     }
                     AiGenerationManager.updatePhase(
                         AiTaskType.QUESTION_BANK, categoryId, progressText,
-                        progress = (i + 1).toFloat() / total
+                        progress = (i + 1).toFloat() / total,
+                        phaseKey = "generation", step = i + 1, stepTotal = total
                     )
                     try {
                         // 本题参考章节指引：放在 user 段，不影响 system 前缀的缓存命中
@@ -475,7 +485,7 @@ class QuestionBankDetailViewModel(
                             ?.joinToString("；") { (entry, section) ->
                                 "「${section.heading?.title}」（${entry.title}）"
                             }
-                        val response = withTimeout(120000) {
+                        val response = run {
                             deepSeekApi.chatCompletion(
                                 systemPrompt = commonSystemPrompt,
                                 userMessage = buildString {
@@ -490,7 +500,9 @@ class QuestionBankDetailViewModel(
                                         append("\n\n【用户解析偏好】请按以下风格偏好组织解析内容：$styleHint")
                                     }
                                 },
-                                temperature = 0.3
+                                temperature = 0.3,
+                                modelOverride = AiModelOption.fromId(_uiState.value.aiModel).model,
+                                provider = AiModelOption.fromId(_uiState.value.aiModel).provider
                             )
                         }
                         val parsed = parseTwoSectionCards(response, 1)[0]
@@ -629,7 +641,7 @@ class QuestionBankDetailViewModel(
 
         val outlineText = buildString {
             entrySections.forEachIndexed { idx, (entry, sections) ->
-                append("记录[e=$idx]「${entry.title}」（${entry.subject}）：\n")
+                append("记录[e=$idx]「${entry.title}」（${entry.notebookName}）：\n")
                 sections.forEachIndexed { si, section ->
                     append("  ${si + 1}. ${section.heading?.title}\n")
                 }
@@ -639,7 +651,7 @@ class QuestionBankDetailViewModel(
         val questionsText = finalQuestions.joinToString("\n\n") { "第${it.index + 1}题：${it.content}" }
 
         val response = try {
-            withTimeout(60000) {
+            run {
                 deepSeekApi.chatCompletion(
                     systemPrompt = buildString {
                         append("你是检索助手。以下是从笔记本「${if (categoryPath.isNotBlank()) categoryPath else "学习记录"}」中匹配到的学习记录 AI 总结的标题大纲（不含正文）。\n\n")
@@ -649,7 +661,9 @@ class QuestionBankDetailViewModel(
                         append("q=题号（从 0 开始）、e=记录编号、s=章节编号数组（从 1 开始）。可一题选多条记录多个章节；某题无需知识背景时 refs 为 []。只输出 JSON，不要解释。")
                     },
                     userMessage = "题目如下：\n\n$questionsText",
-                    temperature = 0.1
+                    temperature = 0.1,
+                    modelOverride = AiModelOption.fromId(_uiState.value.aiModel).model,
+                    provider = AiModelOption.fromId(_uiState.value.aiModel).provider
                 )
             }
         } catch (e: Exception) {

@@ -24,6 +24,10 @@ data class GenerationTask(
     val logId: Long,
     val title: String,
     val phase: String = "",
+    val phaseKey: String = "",
+    val mode: String = "",
+    val step: Int = 0,
+    val stepTotal: Int = 0,
     val progress: Float = 0f,
     val status: AiTaskStatus = AiTaskStatus.RUNNING,
     val error: String? = null
@@ -45,21 +49,34 @@ object AiGenerationManager {
 
     fun taskIdFor(type: AiTaskType, logId: Long): String = "${type.name.lowercase()}_$logId"
 
-    fun start(type: AiTaskType, logId: Long, title: String) {
+    fun start(type: AiTaskType, logId: Long, title: String, mode: String = "") {
         val taskId = taskIdFor(type, logId)
         _tasks.update { map ->
-            map + (taskId to GenerationTask(taskId = taskId, type = type, logId = logId, title = title))
+            map + (taskId to GenerationTask(taskId = taskId, type = type, logId = logId, title = title, mode = mode))
         }
     }
 
-    fun updatePhase(type: AiTaskType, logId: Long, phase: String, progress: Float? = null) {
+    fun updatePhase(
+        type: AiTaskType,
+        logId: Long,
+        phase: String,
+        progress: Float? = null,
+        phaseKey: String? = null,
+        mode: String? = null,
+        step: Int? = null,
+        stepTotal: Int? = null
+    ) {
         val taskId = taskIdFor(type, logId)
         _tasks.update { map ->
             val current = map[taskId] ?: return@update map
             map + (taskId to current.copy(
                 phase = phase,
                 progress = progress ?: current.progress,
-                status = AiTaskStatus.RUNNING
+                status = AiTaskStatus.RUNNING,
+                phaseKey = phaseKey ?: current.phaseKey,
+                mode = mode ?: current.mode,
+                step = step ?: current.step,
+                stepTotal = stepTotal ?: current.stepTotal
             ))
         }
     }

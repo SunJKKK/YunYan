@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -46,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -53,7 +56,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -67,9 +69,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sunjk.sunjktool.data.local.ApiPreferences
+import com.sunjk.sunjktool.data.local.AiModelOption
 import com.sunjk.sunjktool.data.local.PromptKeys
 import com.sunjk.sunjktool.data.sync.SyncStatus
 import java.text.SimpleDateFormat
@@ -342,75 +346,208 @@ private fun SettingsMenuItem(
 @Composable
 private fun ApiKeysContent(viewModel: SettingsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ApiProviderCard(
+            title = "DeepSeek",
+            description = "主力生成模型 · OpenAI 兼容接口"
+        ) {
+            ApiKeyField(
+                value = uiState.deepSeekKey,
+                onValueChange = viewModel::updateDeepSeekKey,
+                label = "API Key",
+                placeholder = "sk-...",
+                password = true
+            )
+            ApiKeyField(
+                value = uiState.deepSeekBaseUrl,
+                onValueChange = viewModel::updateDeepSeekBaseUrl,
+                label = "API 地址",
+                placeholder = "https://api.deepseek.com"
+            )
+            ApiKeyField(
+                value = uiState.deepSeekModel,
+                onValueChange = viewModel::setDeepSeekModel,
+                label = "模型名",
+                placeholder = ApiPreferences.MODEL_V4_FLASH
+            )
+        }
+
+        ApiProviderCard(
+            title = "通义千问（Qwen）",
+            description = "可选 · 支持联网搜索，与 DeepSeek 同为 OpenAI 兼容接口"
+        ) {
+            ApiKeyField(
+                value = uiState.qwenKey,
+                onValueChange = viewModel::updateQwenKey,
+                label = "API Key",
+                placeholder = "sk-...",
+                password = true
+            )
+            ApiKeyField(
+                value = uiState.qwenBaseUrl,
+                onValueChange = viewModel::updateQwenBaseUrl,
+                label = "API 地址",
+                placeholder = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            )
+            ApiKeyField(
+                value = uiState.qwenModel,
+                onValueChange = viewModel::updateQwenModel,
+                label = "模型名",
+                placeholder = ApiPreferences.MODEL_QWEN_FLASH
+            )
+        }
+
+        ApiProviderCard(
+            title = "和风天气",
+            description = "天气功能数据源"
+        ) {
+            ApiKeyField(
+                value = uiState.qweatherKey,
+                onValueChange = viewModel::updateQWeatherKey,
+                label = "API Key",
+                placeholder = "你的和风天气 Key",
+                password = true
+            )
+        }
+
+        uiState.apiKeySaveResult?.let { result ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Check,
+                    null,
+                    Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    result,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        Button(
+            onClick = viewModel::saveApiKeys,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("保存 API 密钥")
+        }
+    }
+}
+
+/** 统一设置分组卡片：标题 + 说明 + 内容区 */
+@Composable
+private fun ApiProviderCard(
+    title: String,
+    description: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(2.dp))
             Text(
-                "API 密钥",
-                style = MaterialTheme.typography.titleSmall
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
-
-            TextField(
-                value = uiState.deepSeekKey,
-                onValueChange = viewModel::updateDeepSeekKey,
-                label = { Text("DeepSeek API Key") },
-                placeholder = { Text("sk-...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-
-            TextField(
-                value = uiState.deepSeekBaseUrl,
-                onValueChange = viewModel::updateDeepSeekBaseUrl,
-                label = { Text("DeepSeek API 地址") },
-                placeholder = { Text("https://api.deepseek.com") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-
-            TextField(
-                value = uiState.qweatherKey,
-                onValueChange = viewModel::updateQWeatherKey,
-                label = { Text("和风天气 API Key") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
-
-            uiState.apiKeySaveResult?.let { result ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Check,
-                        null,
-                        Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        result,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                content()
             }
+        }
+    }
+}
 
-            Button(
-                onClick = viewModel::saveApiKeys,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("保存 API 密钥")
-            }
+/** 设置表单字段：M3 OutlinedTextField */
+@Composable
+private fun ApiKeyField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String = "",
+    password: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        singleLine = true,
+        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+/** 统一设置 Switch 行：标题 + 说明 + Switch */
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** 统一设置导航行：标题 + 说明 + 右箭头（可自定义尾部） */
+@Composable
+private fun SettingsNavRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        if (trailing != null) {
+            trailing()
+        } else {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -423,113 +560,57 @@ private fun AiContent(
     onOpenPrompts: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "AI 设置",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "AI 总结、闪卡等生成功能的模型与行为",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-
+    val defaultAiOption = AiModelOption.fromId(uiState.defaultAiModel)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ApiProviderCard(
+            title = "默认 AI 模型",
+            description = "未单独选择模型时的全局默认"
+        ) {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = uiState.deepSeekModel == ApiPreferences.MODEL_V4_FLASH,
-                    onClick = { viewModel.setDeepSeekModel(ApiPreferences.MODEL_V4_FLASH) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text("V4 Flash", style = MaterialTheme.typography.labelMedium) }
-                SegmentedButton(
-                    selected = uiState.deepSeekModel == ApiPreferences.MODEL_V4_PRO,
-                    onClick = { viewModel.setDeepSeekModel(ApiPreferences.MODEL_V4_PRO) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text("V4 Pro", style = MaterialTheme.typography.labelMedium) }
+                AiModelOption.entries.forEachIndexed { index, opt ->
+                    SegmentedButton(
+                        selected = uiState.defaultAiModel == opt.id,
+                        onClick = { viewModel.setDefaultAiModel(opt.id) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = AiModelOption.entries.size)
+                    ) { Text(opt.label, style = MaterialTheme.typography.labelMedium) }
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                if (uiState.deepSeekModel == ApiPreferences.MODEL_V4_PRO)
-                    "V4 Pro：能力更强，适合复杂内容，费用较高"
-                else
-                    "V4 Flash：速度快、成本低，适合日常使用",
+                "当前默认：${defaultAiOption.label} — ${defaultAiOption.desc}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+        ApiProviderCard(
+            title = "生成行为",
+            description = "调整多Agent与题集的生成方式"
+        ) {
+            SettingsSwitchRow(
+                title = "多Agent主题总结并行",
+                subtitle = "同时总结多个主题以提速，关闭则逐个顺序总结",
+                checked = uiState.multiAgentParallel,
+                onCheckedChange = viewModel::setMultiAgentParallel
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsSwitchRow(
+                title = "题集一键直达",
+                subtitle = "生成题目时跳过拆分确认和解析预览，直接保存",
+                checked = uiState.questionBankAutoSave,
+                onCheckedChange = viewModel::setQuestionBankAutoSave
+            )
+        }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("多Agent主题总结并行", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "同时总结多个主题以提速，关闭则逐个顺序总结",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.multiAgentParallel,
-                    onCheckedChange = viewModel::setMultiAgentParallel
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("题集一键直达", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "生成题目时跳过拆分确认和解析预览，直接保存",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.questionBankAutoSave,
-                    onCheckedChange = viewModel::setQuestionBankAutoSave
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            // AI 提示词 → 二级页面
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenPrompts() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("AI 提示词", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "自定义自检、闪卡等生成的提示词",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        ApiProviderCard(
+            title = "AI 提示词",
+            description = "自定义自检、闪卡等生成的提示词"
+        ) {
+            SettingsNavRow(
+                title = "编辑提示词",
+                subtitle = "进入提示词编辑页，支持恢复默认",
+                onClick = onOpenPrompts
+            )
         }
     }
 }
@@ -540,65 +621,43 @@ private fun AiContent(
 private fun WebDavContent(viewModel: SettingsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "WebDAV 同步",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(Modifier.height(12.dp))
-
-            TextField(
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ApiProviderCard(
+            title = "连接配置",
+            description = "WebDAV（坚果云）服务器信息"
+        ) {
+            ApiKeyField(
                 value = uiState.webDavUrl,
                 onValueChange = viewModel::updateWebDavUrl,
-                label = { Text("WebDAV 地址") },
-                placeholder = { Text("https://dav.jianguoyun.com/dav/") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "WebDAV 地址",
+                placeholder = "https://dav.jianguoyun.com/dav/"
             )
-            Spacer(Modifier.height(8.dp))
-
-            TextField(
+            ApiKeyField(
                 value = uiState.username,
                 onValueChange = viewModel::updateUsername,
-                label = { Text("坚果云邮箱") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "坚果云邮箱"
             )
-            Spacer(Modifier.height(8.dp))
-
-            TextField(
+            ApiKeyField(
                 value = uiState.password,
                 onValueChange = viewModel::updatePassword,
-                label = { Text("应用密码") },
-                placeholder = { Text("在坚果云安全选项中生成") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "应用密码",
+                placeholder = "在坚果云安全选项中生成",
+                password = true
             )
-            Spacer(Modifier.height(12.dp))
-
             uiState.testResult?.let { result ->
                 val isSuccess = result.contains("成功") || result.contains("已保存")
                 Text(
                     result,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSuccess) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    else MaterialTheme.colorScheme.error
                 )
             }
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = viewModel::testConnection,
-                    enabled = !uiState.isTesting
+                    enabled = !uiState.isTesting,
+                    modifier = Modifier.weight(1f)
                 ) {
                     if (uiState.isTesting) {
                         CircularProgressIndicator(
@@ -611,7 +670,8 @@ private fun WebDavContent(viewModel: SettingsViewModel) {
                 }
                 Button(
                     onClick = viewModel::saveCredentials,
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving,
+                    modifier = Modifier.weight(1f)
                 ) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(
@@ -624,44 +684,30 @@ private fun WebDavContent(viewModel: SettingsViewModel) {
                     Text("保存")
                 }
             }
+        }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            // Auto-sync toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("自动同步", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "新数据产生时自动上传",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.autoSyncEnabled,
-                    onCheckedChange = viewModel::setAutoSync
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
+        ApiProviderCard(
+            title = "同步行为",
+            description = "自动上传与手动同步"
+        ) {
+            SettingsSwitchRow(
+                title = "自动同步",
+                subtitle = "新数据产生时自动上传",
+                checked = uiState.autoSyncEnabled,
+                onCheckedChange = viewModel::setAutoSync
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             val lastSync = viewModel.getLastSyncTimestamp()
             val lastSyncText = if (lastSync > 0) {
                 val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 "上次同步: ${fmt.format(Date(lastSync))}"
             } else "从未同步"
-
             Text(
                 lastSyncText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(12.dp))
-
+            Spacer(Modifier.height(8.dp))
             val isSyncing = syncStatus is SyncStatus.Syncing
             Button(
                 onClick = viewModel::triggerSync,
@@ -675,8 +721,7 @@ private fun WebDavContent(viewModel: SettingsViewModel) {
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
-                    val phase = (syncStatus as SyncStatus.Syncing).phase
-                    Text("同步中: $phase")
+                    Text("同步中: ${(syncStatus as SyncStatus.Syncing).phase}")
                 } else {
                     Text("立即同步")
                 }
@@ -690,43 +735,34 @@ private fun WebDavContent(viewModel: SettingsViewModel) {
 @Composable
 private fun TickTickContent(viewModel: SettingsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "滴答清单",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "用于待办功能。通过内嵌浏览器登录同步任务，也可手动粘贴 Cookie/Token。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-
-            // 登录状态
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ApiProviderCard(
+            title = "滴答清单账号",
+            description = "通过内嵌浏览器登录，或手动粘贴 Cookie/Token"
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (uiState.tickTickToken.isNotBlank()) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant
+                        )
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     if (uiState.tickTickToken.isNotBlank()) "已登录" else "未登录",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (uiState.tickTickToken.isNotBlank())
                         MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(Modifier.height(8.dp))
-
-            // 登录 + 清除缓存
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = viewModel::openTickTickWebLogin,
@@ -741,9 +777,8 @@ private fun TickTickContent(viewModel: SettingsViewModel) {
                     Text("清除缓存")
                 }
             }
-            Spacer(Modifier.height(8.dp))
-
             if (uiState.tickTickToken.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = viewModel::testTickTickConnection,
@@ -766,51 +801,47 @@ private fun TickTickContent(viewModel: SettingsViewModel) {
                         Text("退出登录")
                     }
                 }
-                Spacer(Modifier.height(8.dp))
             }
+        }
 
-            // 已完成任务显示模式
-            Text(
-                "已完成任务展示",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Spacer(Modifier.height(6.dp))
+        ApiProviderCard(
+            title = "已完成任务展示",
+            description = "选择已完成任务的展示范围"
+        ) {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = uiState.tickTickCompletedMode == ApiPreferences.COMPLETED_MODE_ALL,
                     onClick = { viewModel.setTickTickCompletedMode(ApiPreferences.COMPLETED_MODE_ALL) },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
-                ) { Text("全部展示", style = MaterialTheme.typography.labelSmall) }
+                ) { Text("全部展示", style = MaterialTheme.typography.labelMedium) }
                 SegmentedButton(
                     selected = uiState.tickTickCompletedMode == ApiPreferences.COMPLETED_MODE_NONE,
                     onClick = { viewModel.setTickTickCompletedMode(ApiPreferences.COMPLETED_MODE_NONE) },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-                ) { Text("不展示", style = MaterialTheme.typography.labelSmall) }
+                ) { Text("不展示", style = MaterialTheme.typography.labelMedium) }
                 SegmentedButton(
                     selected = uiState.tickTickCompletedMode == ApiPreferences.COMPLETED_MODE_TODAY,
                     onClick = { viewModel.setTickTickCompletedMode(ApiPreferences.COMPLETED_MODE_TODAY) },
                     shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-                ) { Text("仅今天", style = MaterialTheme.typography.labelSmall) }
+                ) { Text("仅今天", style = MaterialTheme.typography.labelMedium) }
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "已完成任务的展示范围：全部清单均展示 / 均不展示 / 仅展示今天到期的已完成任务",
-                style = MaterialTheme.typography.labelSmall,
+                "全部清单均展示 / 均不展示 / 仅展示今天到期的已完成任务",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            // 手动输入 Cookie/Token
-            Text(
-                "手动输入 Cookie/Token",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Spacer(Modifier.height(4.dp))
-            TextField(
+        ApiProviderCard(
+            title = "手动输入 Cookie/Token",
+            description = "浏览器登录不可用时的备选方式"
+        ) {
+            OutlinedTextField(
                 value = uiState.tickTickManualToken,
                 onValueChange = viewModel::updateTickTickManualToken,
-                label = { Text("粘贴 Cookie 或 Token（可含 t=...）") },
+                label = { Text("粘贴 Cookie 或 Token") },
+                placeholder = { Text("可含 t=...") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3
             )
@@ -821,17 +852,13 @@ private fun TickTickContent(viewModel: SettingsViewModel) {
             ) {
                 Text("保存")
             }
-
-            Spacer(Modifier.height(8.dp))
-
             uiState.tickTickTestResult?.let { result ->
                 val isSuccess = result.contains("成功") || result.contains("已清除") || result.contains("已退出") || result.contains("已保存")
                 Text(
                     result,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSuccess) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    else MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -843,67 +870,28 @@ private fun TickTickContent(viewModel: SettingsViewModel) {
 @Composable
 private fun DisplayContent(viewModel: SettingsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "平板端模式",
-                style = MaterialTheme.typography.titleSmall
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ApiProviderCard(
+            title = "布局与主题",
+            description = "平板布局与界面主题"
+        ) {
+            SettingsSwitchRow(
+                title = "平板端模式",
+                subtitle = "学习记录详情页使用平板双栏布局",
+                checked = uiState.tabletMode,
+                onCheckedChange = viewModel::setTabletMode
             )
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("平板端模式", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "开启后学习记录详情页使用平板双栏布局",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.tabletMode,
-                    onCheckedChange = viewModel::setTabletMode
+            if (uiState.tabletMode) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingsSwitchRow(
+                    title = "只同步主要内容",
+                    subtitle = "只下载、不上传；不下载图片和附件大文件",
+                    checked = uiState.readOnlySync,
+                    onCheckedChange = viewModel::setReadOnlySync
                 )
             }
-
-            if (uiState.tabletMode) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("只同步主要内容", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "只下载、不上传；不下载图片和附件大文件",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = uiState.readOnlySync,
-                        onCheckedChange = viewModel::setReadOnlySync
-                    )
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            Text(
-                "主题模式",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("主题模式", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(8.dp))
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
@@ -925,29 +913,18 @@ private fun DisplayContent(viewModel: SettingsViewModel) {
                     icon = { Icon(Icons.Outlined.DarkMode, null, Modifier.size(18.dp)) }
                 ) { Text("深色", style = MaterialTheme.typography.labelMedium) }
             }
+        }
 
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("动画效果", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "关闭以优化墨水屏体验",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.animationEnabled,
-                    onCheckedChange = viewModel::setAnimationEnabled
-                )
-            }
+        ApiProviderCard(
+            title = "动效",
+            description = "界面动画与过渡效果"
+        ) {
+            SettingsSwitchRow(
+                title = "动画效果",
+                subtitle = "关闭以优化墨水屏体验",
+                checked = uiState.animationEnabled,
+                onCheckedChange = viewModel::setAnimationEnabled
+            )
         }
     }
 }
@@ -966,99 +943,45 @@ private fun AboutContent(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4"
         } catch (_: Exception) { "1.4" }
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    ApiProviderCard(
+        title = "关于",
+        description = "版本信息与功能入口"
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // 引导页
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToOnboarding() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("引导页", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "重新查看功能介绍与配置",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+        SettingsNavRow(
+            title = "引导页",
+            subtitle = "重新查看功能介绍与配置",
+            onClick = onNavigateToOnboarding
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SettingsNavRow(
+            title = "开源仓库",
+            subtitle = "github.com/SunJKKK/YunYan",
+            onClick = {
+                val intent = android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://github.com/SunJKKK/YunYan")
                 )
+                context.startActivity(intent)
             }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            // 开源仓库
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val intent = android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://github.com/SunJKKK/YunYan")
-                        )
-                        context.startActivity(intent)
-                    },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("开源仓库", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "github.com/SunJKKK/YunYan",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-            // 检查更新
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.checkUpdate(versionName) },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("检查更新", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        uiState.updateStatusText ?: "当前版本 v$versionName",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (uiState.updateDialogUrl != null)
-                            MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SettingsNavRow(
+            title = "检查更新",
+            subtitle = uiState.updateStatusText ?: "当前版本 v$versionName",
+            onClick = { viewModel.checkUpdate(versionName) },
+            trailing = {
                 if (uiState.isCheckingUpdate) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else if (uiState.updateDialogUrl != null) {
                     Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icons.Outlined.Update,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
-        }
+        )
     }
 }
 
@@ -1229,24 +1152,38 @@ private fun PromptEditField(
     onSave: () -> Unit,
     onReset: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(4.dp))
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3,
-            maxLines = 6,
-            placeholder = { Text("输入自定义提示词") }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSave, modifier = Modifier.weight(1f)) {
-                Text("保存")
-            }
-            OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                Text("恢复默认")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "自定义此功能的生成提示词，留空使用内置提示词",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 6,
+                placeholder = { Text("输入自定义提示词") }
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSave, modifier = Modifier.weight(1f)) {
+                    Text("保存")
+                }
+                OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
+                    Text("恢复默认")
+                }
             }
         }
     }

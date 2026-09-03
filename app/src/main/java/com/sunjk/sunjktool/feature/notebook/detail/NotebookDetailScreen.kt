@@ -357,15 +357,15 @@ private fun LogEntryCardItem(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                if (entry.subject.isNotBlank() || entry.timeSpent > 0) {
+                if (entry.notebookName.isNotBlank() || entry.timeSpent > 0) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (entry.subject.isNotBlank()) {
+                        if (entry.notebookName.isNotBlank()) {
                             Text(
-                                text = entry.subject,
+                                text = entry.notebookName,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

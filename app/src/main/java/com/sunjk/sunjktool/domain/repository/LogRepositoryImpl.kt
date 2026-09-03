@@ -1,25 +1,32 @@
 package com.sunjk.sunjktool.domain.repository
 
 import com.sunjk.sunjktool.data.local.dao.LogEntryDao
+import com.sunjk.sunjktool.data.local.dao.NotebookDao
 import com.sunjk.sunjktool.data.model.LogEntryEntity
 import com.sunjk.sunjktool.domain.model.LogEntry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 class LogRepositoryImpl(
-    private val dao: LogEntryDao
+    private val dao: LogEntryDao,
+    private val notebookDao: NotebookDao
 ) : LogRepository {
 
+    // 学习记录的展示分类改为其所在笔记本（最低级目录）名称，subject 字段仅保留历史数据
     override fun getAllEntries(): Flow<List<LogEntry>> =
-        dao.getAllEntries().map { entities ->
-            entities.map { it.toDomain() }
+        combine(dao.getAllEntries(), notebookDao.getAll()) { entities, notebooks ->
+            val nameById = notebooks.associate { it.id to it.name }
+            entities.map { it.toDomain(nameById) }
         }
 
     override fun getEntryById(id: Long): Flow<LogEntry?> =
-        dao.getEntryById(id).map { it?.toDomain() }
+        combine(dao.getEntryById(id), notebookDao.getAll()) { entity, notebooks ->
+            entity?.let { it.toDomain(notebooks.associate { n -> n.id to n.name }) }
+        }
 
     override suspend fun saveEntry(entry: LogEntry): Long {
         val entity = entry.toEntity()
@@ -41,8 +48,9 @@ class LogRepositoryImpl(
 
 
     override fun getEntriesByNotebookId(notebookId: Long): Flow<List<LogEntry>> =
-        dao.getEntriesByNotebookId(notebookId).map { entities ->
-            entities.map { it.toDomain() }
+        combine(dao.getEntriesByNotebookId(notebookId), notebookDao.getAll()) { entities, notebooks ->
+            val nameById = notebooks.associate { it.id to it.name }
+            entities.map { it.toDomain(nameById) }
         }
 
     override suspend fun clearNotebookId(notebookId: Long) {
@@ -60,7 +68,7 @@ class LogRepositoryImpl(
         )
     }
 
-    private fun LogEntryEntity.toDomain() = LogEntry(
+    private fun LogEntryEntity.toDomain(nameById: Map<Long, String> = emptyMap()) = LogEntry(
         id = id,
         subject = subject,
         title = title,
@@ -73,6 +81,7 @@ class LogRepositoryImpl(
         attachmentPaths = LogEntry.decodePaths(attachmentPaths),
         attachmentText = attachmentText,
         notebookId = notebookId,
+        notebookName = notebookId?.let { nameById[it] } ?: "",
         createdDate = LocalDateTime.ofInstant(
             Instant.ofEpochMilli(createdDate), ZoneId.systemDefault()
         ),
